@@ -1,0 +1,556 @@
+-- Создаём передвигаемое меню с настройкой высоты телепортации
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+
+-- Создаём ScreenGui
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "TeleportMenu"
+screenGui.Parent = player:WaitForChild("PlayerGui")
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+-- Создаём основную панель
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 400, 0, 380)
+mainFrame.Position = UDim2.new(0.5, -200, 0.5, -190)
+mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+mainFrame.BackgroundTransparency = 0.05
+mainFrame.BorderSizePixel = 0
+mainFrame.Parent = screenGui
+
+-- Сглаживание углов
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 12)
+corner.Parent = mainFrame
+
+-- Тень
+local shadowEffect = Instance.new("UIStroke")
+shadowEffect.Color = Color3.fromRGB(0, 0, 0)
+shadowEffect.Thickness = 2
+shadowEffect.Transparency = 0.8
+shadowEffect.Parent = mainFrame
+
+-- Заголовок для перетаскивания
+local titleBar = Instance.new("Frame")
+titleBar.Name = "TitleBar"
+titleBar.Size = UDim2.new(1, 0, 0, 45)
+titleBar.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
+titleBar.BackgroundTransparency = 0.1
+titleBar.BorderSizePixel = 0
+titleBar.Parent = mainFrame
+
+local titleCorner = Instance.new("UICorner")
+titleCorner.CornerRadius = UDim.new(0, 12)
+titleCorner.Parent = titleBar
+
+-- Надпись заголовка
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(1, -40, 1, 0)
+titleLabel.Position = UDim2.new(0, 15, 0, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "🚀 ТЕЛЕПОРТ МЕНЮ"
+titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleLabel.TextSize = 18
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.Parent = titleBar
+
+-- Кнопка закрытия
+local closeButton = Instance.new("TextButton")
+closeButton.Size = UDim2.new(0, 30, 0, 30)
+closeButton.Position = UDim2.new(1, -38, 0, 8)
+closeButton.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
+closeButton.BackgroundTransparency = 0.3
+closeButton.Text = "✕"
+closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeButton.TextSize = 20
+closeButton.Font = Enum.Font.GothamBold
+closeButton.BorderSizePixel = 0
+closeButton.Parent = titleBar
+
+local closeCorner = Instance.new("UICorner")
+closeCorner.CornerRadius = UDim.new(0, 6)
+closeCorner.Parent = closeButton
+
+-- Кнопка сворачивания
+local minimizeButton = Instance.new("TextButton")
+minimizeButton.Size = UDim2.new(0, 30, 0, 30)
+minimizeButton.Position = UDim2.new(1, -73, 0, 8)
+minimizeButton.BackgroundColor3 = Color3.fromRGB(255, 180, 60)
+minimizeButton.BackgroundTransparency = 0.3
+minimizeButton.Text = "−"
+minimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+minimizeButton.TextSize = 24
+minimizeButton.Font = Enum.Font.GothamBold
+minimizeButton.BorderSizePixel = 0
+minimizeButton.Parent = titleBar
+
+local minCorner = Instance.new("UICorner")
+minCorner.CornerRadius = UDim.new(0, 6)
+minCorner.Parent = minimizeButton
+
+-- Контент панели
+local contentFrame = Instance.new("Frame")
+contentFrame.Size = UDim2.new(1, 0, 1, -45)
+contentFrame.Position = UDim2.new(0, 0, 0, 45)
+contentFrame.BackgroundTransparency = 1
+contentFrame.Parent = mainFrame
+
+-- === НАСТРОЙКА ТЕЛЕПОРТА ===
+
+-- Текст настройки
+local settingsLabel = Instance.new("TextLabel")
+settingsLabel.Size = UDim2.new(1, -40, 0, 30)
+settingsLabel.Position = UDim2.new(0, 20, 0, 15)
+settingsLabel.BackgroundTransparency = 1
+settingsLabel.Text = "📊 Настройка высоты телепорта:"
+settingsLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
+settingsLabel.TextSize = 14
+settingsLabel.Font = Enum.Font.GothamBold
+settingsLabel.TextXAlignment = Enum.TextXAlignment.Left
+settingsLabel.Parent = contentFrame
+
+-- Текущее значение
+local valueLabel = Instance.new("TextLabel")
+valueLabel.Size = UDim2.new(1, -40, 0, 40)
+valueLabel.Position = UDim2.new(0, 20, 0, 45)
+valueLabel.BackgroundTransparency = 1
+valueLabel.Text = "10 000 студней"
+valueLabel.TextColor3 = Color3.fromRGB(0, 200, 255)
+valueLabel.TextSize = 22
+valueLabel.Font = Enum.Font.GothamBold
+valueLabel.TextXAlignment = Enum.TextXAlignment.Center
+valueLabel.Parent = contentFrame
+
+-- Ползунок (Slider)
+local sliderFrame = Instance.new("Frame")
+sliderFrame.Size = UDim2.new(0, 300, 0, 4)
+sliderFrame.Position = UDim2.new(0.5, -150, 0, 95)
+sliderFrame.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+sliderFrame.BorderSizePixel = 0
+sliderFrame.Parent = contentFrame
+
+local sliderCorner = Instance.new("UICorner")
+sliderCorner.CornerRadius = UDim.new(0, 2)
+sliderCorner.Parent = sliderFrame
+
+-- Заполненная часть ползунка
+local sliderFill = Instance.new("Frame")
+sliderFill.Size = UDim2.new(0.5, 0, 1, 0)
+sliderFill.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+sliderFill.BorderSizePixel = 0
+sliderFill.Parent = sliderFrame
+
+local fillCorner = Instance.new("UICorner")
+fillCorner.CornerRadius = UDim.new(0, 2)
+fillCorner.Parent = sliderFill
+
+-- Круглая ручка ползунка
+local sliderButton = Instance.new("TextButton")
+sliderButton.Size = UDim2.new(0, 20, 0, 20)
+sliderButton.Position = UDim2.new(0.5, -10, 0.5, -10)
+sliderButton.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+sliderButton.Text = ""
+sliderButton.BorderSizePixel = 0
+sliderButton.Parent = sliderFrame
+
+local buttonCorner = Instance.new("UICorner")
+buttonCorner.CornerRadius = UDim.new(1, 0)
+buttonCorner.Parent = sliderButton
+
+-- Поле для ручного ввода
+local inputBox = Instance.new("TextBox")
+inputBox.Size = UDim2.new(0, 150, 0, 35)
+inputBox.Position = UDim2.new(0.5, -75, 0, 125)
+inputBox.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
+inputBox.Text = "10000"
+inputBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+inputBox.TextSize = 16
+inputBox.Font = Enum.Font.Gotham
+inputBox.PlaceholderText = "Введите число"
+inputBox.ClearTextOnFocus = false
+inputBox.Parent = contentFrame
+
+local inputCorner = Instance.new("UICorner")
+inputCorner.CornerRadius = UDim.new(0, 6)
+inputCorner.Parent = inputBox
+
+-- Кнопка применить
+local applyButton = Instance.new("TextButton")
+applyButton.Size = UDim2.new(0, 100, 0, 35)
+applyButton.Position = UDim2.new(0.5, 55, 0, 125)
+applyButton.BackgroundColor3 = Color3.fromRGB(60, 60, 90)
+applyButton.Text = "Применить"
+applyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+applyButton.TextSize = 14
+applyButton.Font = Enum.Font.Gotham
+applyButton.BorderSizePixel = 0
+applyButton.Parent = contentFrame
+
+local applyCorner = Instance.new("UICorner")
+applyCorner.CornerRadius = UDim.new(0, 6)
+applyCorner.Parent = applyButton
+
+-- Кнопки быстрой настройки
+local presetFrame = Instance.new("Frame")
+presetFrame.Size = UDim2.new(0, 360, 0, 30)
+presetFrame.Position = UDim2.new(0.5, -180, 0, 175)
+presetFrame.BackgroundTransparency = 1
+presetFrame.Parent = contentFrame
+
+local presets = {"100", "1000", "10000", "100000", "1000000"}
+
+for i, value in ipairs(presets) do
+    local presetButton = Instance.new("TextButton")
+    presetButton.Size = UDim2.new(0, 65, 1, 0)
+    presetButton.Position = UDim2.new(0, (i-1) * 70, 0, 0)
+    presetButton.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
+    presetButton.Text = value .. (value == "1000000" and "M" or (value == "100000" and "K" or ""))
+    presetButton.TextColor3 = Color3.fromRGB(200, 200, 220)
+    presetButton.TextSize = 12
+    presetButton.Font = Enum.Font.Gotham
+    presetButton.BorderSizePixel = 0
+    presetButton.Parent = presetFrame
+    
+    local presetCorner = Instance.new("UICorner")
+    presetCorner.CornerRadius = UDim.new(0, 4)
+    presetCorner.Parent = presetButton
+    
+    presetButton.MouseButton1Click:Connect(function()
+        local numValue = tonumber(value)
+        if numValue then
+            teleportHeight = numValue
+            updateSliderValue(teleportHeight)
+            inputBox.Text = tostring(teleportHeight)
+            valueLabel.Text = formatNumber(teleportHeight) .. " студней"
+        end
+    end)
+    
+    presetButton.MouseEnter:Connect(function()
+        presetButton.BackgroundColor3 = Color3.fromRGB(70, 70, 95)
+    end)
+    
+    presetButton.MouseLeave:Connect(function()
+        presetButton.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
+    end)
+end
+
+-- Большая кнопка телепортации
+local teleportButton = Instance.new("TextButton")
+teleportButton.Name = "TeleportButton"
+teleportButton.Size = UDim2.new(0, 280, 0, 70)
+teleportButton.Position = UDim2.new(0.5, -140, 0, 225)
+teleportButton.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+teleportButton.Text = "🚀 ТЕЛЕПОРТ ВВЕРХ 🚀"
+teleportButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+teleportButton.TextSize = 18
+teleportButton.Font = Enum.Font.GothamBold
+teleportButton.AutoButtonColor = false
+teleportButton.BorderSizePixel = 0
+teleportButton.Parent = contentFrame
+
+local teleportCorner = Instance.new("UICorner")
+teleportCorner.CornerRadius = UDim.new(0, 12)
+teleportCorner.Parent = teleportButton
+
+local buttonGlow = Instance.new("UIStroke")
+buttonGlow.Color = Color3.fromRGB(0, 150, 255)
+buttonGlow.Thickness = 3
+buttonGlow.Transparency = 0.5
+buttonGlow.Parent = teleportButton
+
+-- Счётчик телепортов
+local counterLabel = Instance.new("TextLabel")
+counterLabel.Size = UDim2.new(1, -40, 0, 25)
+counterLabel.Position = UDim2.new(0, 20, 0, 310)
+counterLabel.BackgroundTransparency = 1
+counterLabel.Text = "Телепортов: 0"
+counterLabel.TextColor3 = Color3.fromRGB(150, 150, 180)
+counterLabel.TextSize = 13
+counterLabel.Font = Enum.Font.SourceSans
+counterLabel.TextXAlignment = Enum.TextXAlignment.Center
+counterLabel.Parent = contentFrame
+
+-- Переменные
+local teleportHeight = 10000
+local teleportCount = 0
+local dragging = false
+local dragStart = nil
+local startPos = nil
+local isDraggingSlider = false
+
+-- Функция форматирования чисел
+local function formatNumber(num)
+    if num >= 1000000 then
+        return string.format("%.1fM", num / 1000000)
+    elseif num >= 1000 then
+        return string.format("%.1fK", num / 1000)
+    else
+        return tostring(num)
+    end
+end
+
+-- Функция обновления ползунка
+local function updateSliderValue(value)
+    local minVal = 1
+    local maxVal = 1000000
+    local percent = (value - minVal) / (maxVal - minVal)
+    percent = math.clamp(percent, 0, 1)
+    
+    sliderFill.Size = UDim2.new(percent, 0, 1, 0)
+    sliderButton.Position = UDim2.new(percent, -10, 0.5, -10)
+end
+
+-- Функция получения значения из позиции ползунка
+local function getValueFromSliderPosition(inputPosition)
+    local sliderAbsPos = sliderFrame.AbsolutePosition
+    local sliderWidth = sliderFrame.AbsoluteSize.X
+    local clickX = inputPosition.X - sliderAbsPos.X
+    local percent = math.clamp(clickX / sliderWidth, 0, 1)
+    
+    local minVal = 1
+    local maxVal = 1000000
+    local rawValue = minVal + (maxVal - minVal) * percent
+    return math.floor(rawValue)
+end
+
+-- Обработка перетаскивания ползунка
+sliderButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        isDraggingSlider = true
+        local newValue = getValueFromSliderPosition(input.Position)
+        teleportHeight = math.clamp(newValue, 1, 1000000)
+        updateSliderValue(teleportHeight)
+        inputBox.Text = tostring(teleportHeight)
+        valueLabel.Text = formatNumber(teleportHeight) .. " студней"
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if isDraggingSlider and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local newValue = getValueFromSliderPosition(input.Position)
+        teleportHeight = math.clamp(newValue, 1, 1000000)
+        updateSliderValue(teleportHeight)
+        inputBox.Text = tostring(teleportHeight)
+        valueLabel.Text = formatNumber(teleportHeight) .. " студней"
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        isDraggingSlider = false
+    end
+end)
+
+-- Нажатие на полосу ползунка
+sliderFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        local newValue = getValueFromSliderPosition(input.Position)
+        teleportHeight = math.clamp(newValue, 1, 1000000)
+        updateSliderValue(teleportHeight)
+        inputBox.Text = tostring(teleportHeight)
+        valueLabel.Text = formatNumber(teleportHeight) .. " студней"
+    end
+end)
+
+-- Применение значения из текстового поля
+local function applyInputValue()
+    local numValue = tonumber(inputBox.Text)
+    if numValue then
+        numValue = math.clamp(math.floor(numValue), 1, 1000000)
+        teleportHeight = numValue
+        updateSliderValue(teleportHeight)
+        inputBox.Text = tostring(teleportHeight)
+        valueLabel.Text = formatNumber(teleportHeight) .. " студней"
+    else
+        inputBox.Text = tostring(teleportHeight)
+    end
+end
+
+applyButton.MouseButton1Click:Connect(applyInputValue)
+inputBox.FocusLost:Connect(function(enterPressed)
+    if enterPressed then
+        applyInputValue()
+    end
+end)
+
+-- Функция телепортации
+local function teleportUp()
+    local currentCharacter = player.Character
+    if currentCharacter then
+        local humanoidRootPart = currentCharacter:FindFirstChild("HumanoidRootPart")
+        if humanoidRootPart then
+            local currentPosition = humanoidRootPart.Position
+            local newPosition = Vector3.new(currentPosition.X, currentPosition.Y + teleportHeight, currentPosition.Z)
+            humanoidRootPart.CFrame = CFrame.new(newPosition)
+            
+            teleportCount = teleportCount + 1
+            counterLabel.Text = "Телепортов: " .. teleportCount .. " (всего поднялся на " .. formatNumber(teleportCount * teleportHeight) .. " студней)"
+            
+            -- Визуальный эффект
+            local attachment = Instance.new("Attachment")
+            attachment.Parent = humanoidRootPart
+            local smoke = Instance.new("Smoke")
+            smoke.Parent = attachment
+            game:GetService("Debris"):AddItem(smoke, 2)
+            game:GetService("Debris"):AddItem(attachment, 2)
+            
+            -- Анимация кнопки
+            local clickTween = TweenService:Create(teleportButton, TweenInfo.new(0.1, Enum.EasingStyle.Quad), {
+                BackgroundColor3 = Color3.fromRGB(0, 200, 100)
+            })
+            clickTween:Play()
+            task.wait(0.1)
+            local resetTween = TweenService:Create(teleportButton, TweenInfo.new(0.1, Enum.EasingStyle.Quad), {
+                BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+            })
+            resetTween:Play()
+        end
+    end
+end
+
+teleportButton.MouseButton1Click:Connect(teleportUp)
+
+-- Перетаскивание окна
+local function startDrag(input)
+    dragging = true
+    dragStart = input.Position
+    startPos = mainFrame.Position
+end
+
+local function drag(input)
+    if dragging then
+        local delta = input.Position - dragStart
+        local newX = startPos.X.Offset + delta.X
+        local newY = startPos.Y.Offset + delta.Y
+        
+        newX = math.clamp(newX, 0, 1 - mainFrame.Size.X.Scale)
+        newY = math.clamp(newY, 0, 1 - mainFrame.Size.Y.Scale)
+        
+        mainFrame.Position = UDim2.new(startPos.X.Scale, newX, startPos.Y.Scale, newY)
+    end
+end
+
+local function stopDrag()
+    dragging = false
+end
+
+titleBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        startDrag(input)
+    end
+end)
+
+titleBar.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        drag(input)
+    end
+end)
+
+titleBar.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        stopDrag()
+    end
+end)
+
+-- Анимации кнопок
+teleportButton.MouseEnter:Connect(function()
+    local hoverTween = TweenService:Create(teleportButton, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
+        BackgroundColor3 = Color3.fromRGB(50, 170, 255),
+        Size = UDim2.new(0, 290, 0, 75)
+    })
+    hoverTween:Play()
+    
+    local glowTween = TweenService:Create(buttonGlow, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
+        Transparency = 0.2,
+        Thickness = 4
+    })
+    glowTween:Play()
+end)
+
+teleportButton.MouseLeave:Connect(function()
+    local leaveTween = TweenService:Create(teleportButton, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
+        BackgroundColor3 = Color3.fromRGB(0, 120, 255),
+        Size = UDim2.new(0, 280, 0, 70)
+    })
+    leaveTween:Play()
+    
+    local glowTween = TweenService:Create(buttonGlow, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
+        Transparency = 0.5,
+        Thickness = 3
+    })
+    glowTween:Play()
+end)
+
+applyButton.MouseEnter:Connect(function()
+    applyButton.BackgroundColor3 = Color3.fromRGB(80, 80, 110)
+end)
+
+applyButton.MouseLeave:Connect(function()
+    applyButton.BackgroundColor3 = Color3.fromRGB(60, 60, 90)
+end)
+
+closeButton.MouseEnter:Connect(function()
+    closeButton.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
+    closeButton.BackgroundTransparency = 0.1
+end)
+
+closeButton.MouseLeave:Connect(function()
+    closeButton.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
+    closeButton.BackgroundTransparency = 0.3
+end)
+
+minimizeButton.MouseEnter:Connect(function()
+    minimizeButton.BackgroundColor3 = Color3.fromRGB(255, 200, 80)
+    minimizeButton.BackgroundTransparency = 0.1
+end)
+
+minimizeButton.MouseLeave:Connect(function()
+    minimizeButton.BackgroundColor3 = Color3.fromRGB(255, 180, 60)
+    minimizeButton.BackgroundTransparency = 0.3
+end)
+
+-- Сворачивание/разворачивание
+local minimized = false
+
+minimizeButton.MouseButton1Click:Connect(function()
+    minimized = not minimized
+    if minimized then
+        local minimizeTween = TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
+            Size = UDim2.new(0, 400, 0, 45)
+        })
+        minimizeTween:Play()
+        contentFrame.Visible = false
+        minimizeButton.Text = "□"
+    else
+        local maximizeTween = TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
+            Size = UDim2.new(0, 400, 0, 380)
+        })
+        maximizeTween:Play()
+        contentFrame.Visible = true
+        minimizeButton.Text = "−"
+    end
+end)
+
+closeButton.MouseButton1Click:Connect(function()
+    screenGui:Destroy()
+end)
+
+-- Обновляем ссылку на персонажа
+player.CharacterAdded:Connect(function(newCharacter)
+    character = newCharacter
+end)
+
+-- Анимация появления
+mainFrame.BackgroundTransparency = 1
+local appearTween = TweenService:Create(mainFrame, TweenInfo.new(0.5, Enum.EasingStyle.Back), {
+    BackgroundTransparency = 0.05
+})
+appearTween:Play()
+
+-- Инициализация ползунка
+updateSliderValue(teleportHeight)
