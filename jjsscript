@@ -1,15 +1,14 @@
--- Обход анти-чита с сохранением меню после смерти
+-- Обход анти-чита с сохранением меню после смерти (РАБОЧЕЕ ПЕРЕДВИЖЕНИЕ)
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
-local RunService = game:GetService("RunService")
 
 local player = Players.LocalPlayer
 
--- Создаём GUI (глобально, не привязан к персонажу)
+-- Создаём GUI
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "TeleportMenu"
-screenGui.ResetOnSpawn = false -- ВАЖНО: не сбрасывать при смерти!
+screenGui.ResetOnSpawn = false
 screenGui.Parent = player:WaitForChild("PlayerGui")
 
 local mainFrame = Instance.new("Frame")
@@ -24,7 +23,7 @@ local corner = Instance.new("UICorner")
 corner.CornerRadius = UDim.new(0, 12)
 corner.Parent = mainFrame
 
--- Заголовок
+-- Заголовок (зона перетаскивания)
 local titleBar = Instance.new("Frame")
 titleBar.Size = UDim2.new(1, 0, 0, 45)
 titleBar.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
@@ -38,9 +37,9 @@ local titleLabel = Instance.new("TextLabel")
 titleLabel.Size = UDim2.new(1, -40, 1, 0)
 titleLabel.Position = UDim2.new(0, 15, 0, 0)
 titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "🚀 ТЕЛЕПОРТ МЕНЮ"
+titleLabel.Text = "🚀 ТЕЛЕПОРТ МЕНЮ (тяни за заголовок)"
 titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-titleLabel.TextSize = 18
+titleLabel.TextSize = 16
 titleLabel.Font = Enum.Font.GothamBold
 titleLabel.TextXAlignment = Enum.TextXAlignment.Left
 titleLabel.Parent = titleBar
@@ -55,6 +54,7 @@ closeButton.Text = "✕"
 closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 closeButton.TextSize = 20
 closeButton.Font = Enum.Font.GothamBold
+closeButton.BorderSizePixel = 0
 closeButton.Parent = titleBar
 
 local closeCorner = Instance.new("UICorner")
@@ -69,6 +69,7 @@ minimizeButton.BackgroundTransparency = 0.3
 minimizeButton.Text = "−"
 minimizeButton.TextSize = 24
 minimizeButton.Font = Enum.Font.GothamBold
+minimizeButton.BorderSizePixel = 0
 minimizeButton.Parent = titleBar
 
 local minCorner = Instance.new("UICorner")
@@ -148,6 +149,10 @@ inputBox.PlaceholderText = "Введите число"
 inputBox.ClearTextOnFocus = false
 inputBox.Parent = contentFrame
 
+local inputCorner = Instance.new("UICorner")
+inputCorner.CornerRadius = UDim.new(0, 6)
+inputCorner.Parent = inputBox
+
 local applyButton = Instance.new("TextButton")
 applyButton.Size = UDim2.new(0, 100, 0, 35)
 applyButton.Position = UDim2.new(0.5, 55, 0, 125)
@@ -158,6 +163,10 @@ applyButton.TextSize = 14
 applyButton.Font = Enum.Font.Gotham
 applyButton.BorderSizePixel = 0
 applyButton.Parent = contentFrame
+
+local applyCorner = Instance.new("UICorner")
+applyCorner.CornerRadius = UDim.new(0, 6)
+applyCorner.Parent = applyButton
 
 -- Кнопки быстрой настройки
 local presetFrame = Instance.new("Frame")
@@ -187,6 +196,10 @@ methodDropdown.TextColor3 = Color3.fromRGB(255, 255, 255)
 methodDropdown.TextSize = 12
 methodDropdown.Font = Enum.Font.Gotham
 methodDropdown.Parent = contentFrame
+
+local methodCorner = Instance.new("UICorner")
+methodCorner.CornerRadius = UDim.new(0, 6)
+methodCorner.Parent = methodDropdown
 
 -- Статус персонажа
 local statusLabel = Instance.new("TextLabel")
@@ -238,11 +251,65 @@ counterLabel.Parent = contentFrame
 -- Переменные
 local teleportHeight = 10000
 local teleportCount = 0
-local dragging = false
 local isDraggingSlider = false
 local selectedMethod = "Velocity"
 local currentCharacter = nil
 local isAlive = true
+
+-- ===== ПРОСТАЯ И НАДЁЖНАЯ СИСТЕМА ПЕРЕТАСКИВАНИЯ =====
+local dragging = false
+local dragStartMousePos = Vector2.new()
+local dragStartFramePos = Vector2.new()
+
+titleBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        
+        -- Запоминаем позицию мыши
+        dragStartMousePos = Vector2.new(input.Position.X, input.Position.Y)
+        
+        -- Запоминаем текущую позицию фрейма в пикселях
+        dragStartFramePos = Vector2.new(mainFrame.AbsolutePosition.X, mainFrame.AbsolutePosition.Y)
+        
+        -- Визуальный эффект
+        titleBar.BackgroundColor3 = Color3.fromRGB(70, 70, 95)
+        
+        print("Начали перетаскивание") -- Для отладки
+    end
+end)
+
+titleBar.InputChanged:Connect(function(input)
+    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        -- Получаем текущую позицию мыши
+        local currentMousePos = Vector2.new(input.Position.X, input.Position.Y)
+        
+        -- Вычисляем смещение
+        local delta = currentMousePos - dragStartMousePos
+        
+        -- Новая позиция фрейма
+        local newX = dragStartFramePos.X + delta.X
+        local newY = dragStartFramePos.Y + delta.Y
+        
+        -- Получаем размеры экрана
+        local screenSize = workspace.CurrentCamera.ViewportSize
+        local frameSize = mainFrame.AbsoluteSize
+        
+        -- Ограничиваем, чтобы окно не выходило за экран
+        newX = math.clamp(newX, 0, screenSize.X - frameSize.X)
+        newY = math.clamp(newY, 0, screenSize.Y - frameSize.Y)
+        
+        -- Применяем новую позицию
+        mainFrame.Position = UDim2.new(0, newX, 0, newY)
+    end
+end)
+
+titleBar.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 and dragging then
+        dragging = false
+        titleBar.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
+        print("Закончили перетаскивание") -- Для отладки
+    end
+end)
 
 -- Функции ползунка
 local function updateSliderValue(value)
@@ -341,16 +408,13 @@ local function teleportViaVelocity(height)
     local humanoid = currentCharacter:FindFirstChild("Humanoid")
     
     if hrp and humanoid and humanoid.Health > 0 then
-        -- Отключаем гравитацию на момент
         local originalGravity = workspace.Gravity
         workspace.Gravity = 0
         
-        -- Даём мощный импульс вверх
         local velocity = math.sqrt(2 * height * 50)
         hrp.Velocity = Vector3.new(0, velocity, 0)
         hrp.AssemblyLinearVelocity = Vector3.new(0, velocity, 0)
         
-        -- Возвращаем гравитацию
         task.wait(0.05)
         workspace.Gravity = originalGravity
         return true
@@ -408,13 +472,12 @@ local function teleportViaNetwork(height)
     return false
 end
 
--- Главная функция телепортации с проверкой на жизнь
+-- Главная функция телепортации
 local function teleportUp()
     if not isAlive then
         statusLabel.Text = "❌ Вы мертвы! Возродитесь сначала"
         statusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
         
-        -- Мигание кнопки
         teleportButton.BackgroundColor3 = Color3.fromRGB(100, 60, 60)
         task.wait(0.3)
         teleportButton.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
@@ -444,7 +507,6 @@ local function teleportUp()
         statusLabel.Text = "✅ Телепорт успешен!"
         statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
         
-        -- Визуальный эффект
         if currentCharacter and currentCharacter:FindFirstChild("HumanoidRootPart") then
             local hrp = currentCharacter.HumanoidRootPart
             local attachment = Instance.new("Attachment")
@@ -455,7 +517,6 @@ local function teleportUp()
             game:GetService("Debris"):AddItem(attachment, 2)
         end
         
-        -- Анимация кнопки
         local clickTween = TweenService:Create(teleportButton, TweenInfo.new(0.1, Enum.EasingStyle.Quad), {
             BackgroundColor3 = Color3.fromRGB(0, 200, 100)
         })
@@ -466,7 +527,6 @@ local function teleportUp()
         })
         resetTween:Play()
         
-        -- Сброс статуса через 2 секунды
         task.wait(2)
         if isAlive then
             statusLabel.Text = "✅ Персонаж жив"
@@ -478,25 +538,21 @@ local function teleportUp()
     end
 end
 
--- ===== ОТСЛЕЖИВАНИЕ ПЕРЕРОЖДЕНИЯ =====
-
+-- Отслеживание перерождения
 local function onCharacterAdded(newChar)
     currentCharacter = newChar
     isAlive = true
     statusLabel.Text = "✅ Персонаж жив"
     statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
     
-    -- Ждём появления Humanoid
     local humanoid = newChar:WaitForChild("Humanoid")
     
-    -- Отслеживаем смерть
     humanoid.Died:Connect(function()
         isAlive = false
         statusLabel.Text = "💀 Вы умерли! Ожидание возрождения..."
         statusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
     end)
     
-    -- Отслеживание воскрешения (если есть)
     humanoid:GetPropertyChangedSignal("Health"):Connect(function()
         if humanoid.Health > 0 and not isAlive then
             isAlive = true
@@ -510,7 +566,6 @@ local function onCharacterAdded(newChar)
     end)
 end
 
--- Подключаемся к событию добавления персонажа
 if player.Character then
     onCharacterAdded(player.Character)
 end
@@ -532,34 +587,6 @@ methodDropdown.MouseButton1Click:Connect(function()
 end)
 
 teleportButton.MouseButton1Click:Connect(teleportUp)
-
--- Перетаскивание окна
-titleBar.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        dragging = true
-        dragStart = input.Position
-        startPos = mainFrame.Position
-    end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-        local delta = input.Position - dragStart
-        local newX = startPos.X.Offset + delta.X
-        local newY = startPos.Y.Offset + delta.Y
-        
-        newX = math.clamp(newX, 0, 1 - mainFrame.Size.X.Scale)
-        newY = math.clamp(newY, 0, 1 - mainFrame.Size.Y.Scale)
-        
-        mainFrame.Position = UDim2.new(startPos.X.Scale, newX, startPos.Y.Scale, newY)
-    end
-end)
-
-UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        dragging = false
-    end
-end)
 
 -- Анимации кнопок
 teleportButton.MouseEnter:Connect(function()
