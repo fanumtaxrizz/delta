@@ -1,7 +1,8 @@
--- Обход анти-чита с сохранением меню после смерти (РАБОЧЕЕ ПЕРЕДВИЖЕНИЕ)
+-- Обход анти-чита с настройкой скорости Velocity
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
 
 local player = Players.LocalPlayer
 
@@ -12,8 +13,8 @@ screenGui.ResetOnSpawn = false
 screenGui.Parent = player:WaitForChild("PlayerGui")
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 400, 0, 420)
-mainFrame.Position = UDim2.new(0.5, -200, 0.5, -210)
+mainFrame.Size = UDim2.new(0, 450, 0, 500)
+mainFrame.Position = UDim2.new(0.5, -225, 0.5, -250)
 mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
 mainFrame.BackgroundTransparency = 0.05
 mainFrame.BorderSizePixel = 0
@@ -23,7 +24,7 @@ local corner = Instance.new("UICorner")
 corner.CornerRadius = UDim.new(0, 12)
 corner.Parent = mainFrame
 
--- Заголовок (зона перетаскивания)
+-- Заголовок
 local titleBar = Instance.new("Frame")
 titleBar.Size = UDim2.new(1, 0, 0, 45)
 titleBar.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
@@ -83,7 +84,52 @@ contentFrame.Position = UDim2.new(0, 0, 0, 45)
 contentFrame.BackgroundTransparency = 1
 contentFrame.Parent = mainFrame
 
--- Настройки
+-- ===== ВКЛАДКИ =====
+local tabBar = Instance.new("Frame")
+tabBar.Size = UDim2.new(1, 0, 0, 35)
+tabBar.Position = UDim2.new(0, 0, 0, 0)
+tabBar.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+tabBar.BackgroundTransparency = 0.5
+tabBar.Parent = contentFrame
+
+local tab1 = Instance.new("TextButton")
+tab1.Size = UDim2.new(0.5, 0, 1, 0)
+tab1.Position = UDim2.new(0, 0, 0, 0)
+tab1.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+tab1.Text = "📊 Основное"
+tab1.TextColor3 = Color3.fromRGB(255, 255, 255)
+tab1.TextSize = 14
+tab1.Font = Enum.Font.GothamBold
+tab1.BorderSizePixel = 0
+tab1.Parent = tabBar
+
+local tab2 = Instance.new("TextButton")
+tab2.Size = UDim2.new(0.5, 0, 1, 0)
+tab2.Position = UDim2.new(0.5, 0, 0, 0)
+tab2.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
+tab2.Text = "⚡ Настройки Velocity"
+tab2.TextColor3 = Color3.fromRGB(200, 200, 220)
+tab2.TextSize = 14
+tab2.Font = Enum.Font.GothamBold
+tab2.BorderSizePixel = 0
+tab2.Parent = tabBar
+
+-- Панель 1 (Основная)
+local panel1 = Instance.new("Frame")
+panel1.Size = UDim2.new(1, 0, 1, -35)
+panel1.Position = UDim2.new(0, 0, 0, 35)
+panel1.BackgroundTransparency = 1
+panel1.Parent = contentFrame
+
+-- Панель 2 (Velocity настройки)
+local panel2 = Instance.new("Frame")
+panel2.Size = UDim2.new(1, 0, 1, -35)
+panel2.Position = UDim2.new(0, 0, 0, 35)
+panel2.BackgroundTransparency = 1
+panel2.Visible = false
+panel2.Parent = contentFrame
+
+-- ===== ПАНЕЛЬ 1 (ОСНОВНАЯ) =====
 local settingsLabel = Instance.new("TextLabel")
 settingsLabel.Size = UDim2.new(1, -40, 0, 30)
 settingsLabel.Position = UDim2.new(0, 20, 0, 15)
@@ -93,7 +139,7 @@ settingsLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
 settingsLabel.TextSize = 14
 settingsLabel.Font = Enum.Font.GothamBold
 settingsLabel.TextXAlignment = Enum.TextXAlignment.Left
-settingsLabel.Parent = contentFrame
+settingsLabel.Parent = panel1
 
 local valueLabel = Instance.new("TextLabel")
 valueLabel.Size = UDim2.new(1, -40, 0, 40)
@@ -104,15 +150,15 @@ valueLabel.TextColor3 = Color3.fromRGB(0, 200, 255)
 valueLabel.TextSize = 22
 valueLabel.Font = Enum.Font.GothamBold
 valueLabel.TextXAlignment = Enum.TextXAlignment.Center
-valueLabel.Parent = contentFrame
+valueLabel.Parent = panel1
 
--- Ползунок
+-- Ползунок высоты
 local sliderFrame = Instance.new("Frame")
-sliderFrame.Size = UDim2.new(0, 300, 0, 4)
-sliderFrame.Position = UDim2.new(0.5, -150, 0, 95)
+sliderFrame.Size = UDim2.new(0, 350, 0, 4)
+sliderFrame.Position = UDim2.new(0.5, -175, 0, 95)
 sliderFrame.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
 sliderFrame.BorderSizePixel = 0
-sliderFrame.Parent = contentFrame
+sliderFrame.Parent = panel1
 
 local sliderCorner = Instance.new("UICorner")
 sliderCorner.CornerRadius = UDim.new(0, 2)
@@ -136,10 +182,10 @@ local buttonCorner = Instance.new("UICorner")
 buttonCorner.CornerRadius = UDim.new(1, 0)
 buttonCorner.Parent = sliderButton
 
--- Поле ввода
+-- Поле ввода высоты
 local inputBox = Instance.new("TextBox")
 inputBox.Size = UDim2.new(0, 150, 0, 35)
-inputBox.Position = UDim2.new(0.5, -75, 0, 125)
+inputBox.Position = UDim2.new(0.5, -160, 0, 115)
 inputBox.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
 inputBox.Text = "10000"
 inputBox.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -147,59 +193,47 @@ inputBox.TextSize = 16
 inputBox.Font = Enum.Font.Gotham
 inputBox.PlaceholderText = "Введите число"
 inputBox.ClearTextOnFocus = false
-inputBox.Parent = contentFrame
-
-local inputCorner = Instance.new("UICorner")
-inputCorner.CornerRadius = UDim.new(0, 6)
-inputCorner.Parent = inputBox
+inputBox.Parent = panel1
 
 local applyButton = Instance.new("TextButton")
 applyButton.Size = UDim2.new(0, 100, 0, 35)
-applyButton.Position = UDim2.new(0.5, 55, 0, 125)
+applyButton.Position = UDim2.new(0.5, 10, 0, 115)
 applyButton.BackgroundColor3 = Color3.fromRGB(60, 60, 90)
 applyButton.Text = "Применить"
 applyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 applyButton.TextSize = 14
 applyButton.Font = Enum.Font.Gotham
 applyButton.BorderSizePixel = 0
-applyButton.Parent = contentFrame
-
-local applyCorner = Instance.new("UICorner")
-applyCorner.CornerRadius = UDim.new(0, 6)
-applyCorner.Parent = applyButton
+applyButton.Parent = panel1
 
 -- Кнопки быстрой настройки
 local presetFrame = Instance.new("Frame")
-presetFrame.Size = UDim2.new(0, 360, 0, 30)
-presetFrame.Position = UDim2.new(0.5, -180, 0, 175)
+presetFrame.Size = UDim2.new(0, 410, 0, 30)
+presetFrame.Position = UDim2.new(0.5, -205, 0, 165)
 presetFrame.BackgroundTransparency = 1
-presetFrame.Parent = contentFrame
+presetFrame.Parent = panel1
 
 -- Выбор метода телепортации
 local methodLabel = Instance.new("TextLabel")
 methodLabel.Size = UDim2.new(1, -40, 0, 20)
-methodLabel.Position = UDim2.new(0, 20, 0, 215)
+methodLabel.Position = UDim2.new(0, 20, 0, 210)
 methodLabel.BackgroundTransparency = 1
 methodLabel.Text = "🎯 Метод телепортации:"
 methodLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
 methodLabel.TextSize = 12
 methodLabel.Font = Enum.Font.Gotham
 methodLabel.TextXAlignment = Enum.TextXAlignment.Left
-methodLabel.Parent = contentFrame
+methodLabel.Parent = panel1
 
 local methodDropdown = Instance.new("TextButton")
 methodDropdown.Size = UDim2.new(0, 200, 0, 30)
-methodDropdown.Position = UDim2.new(0.5, -100, 0, 237)
+methodDropdown.Position = UDim2.new(0.5, -100, 0, 232)
 methodDropdown.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
 methodDropdown.Text = "🔧 Velocity (Выстрел)"
 methodDropdown.TextColor3 = Color3.fromRGB(255, 255, 255)
 methodDropdown.TextSize = 12
 methodDropdown.Font = Enum.Font.Gotham
-methodDropdown.Parent = contentFrame
-
-local methodCorner = Instance.new("UICorner")
-methodCorner.CornerRadius = UDim.new(0, 6)
-methodCorner.Parent = methodDropdown
+methodDropdown.Parent = panel1
 
 -- Статус персонажа
 local statusLabel = Instance.new("TextLabel")
@@ -211,12 +245,12 @@ statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
 statusLabel.TextSize = 12
 statusLabel.Font = Enum.Font.Gotham
 statusLabel.TextXAlignment = Enum.TextXAlignment.Center
-statusLabel.Parent = contentFrame
+statusLabel.Parent = panel1
 
--- Большая кнопка телепортации
+-- Кнопка телепортации
 local teleportButton = Instance.new("TextButton")
 teleportButton.Size = UDim2.new(0, 280, 0, 70)
-teleportButton.Position = UDim2.new(0.5, -140, 0, 305)
+teleportButton.Position = UDim2.new(0.5, -140, 0, 310)
 teleportButton.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
 teleportButton.Text = "🚀 ТЕЛЕПОРТ ВВЕРХ 🚀"
 teleportButton.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -224,94 +258,175 @@ teleportButton.TextSize = 18
 teleportButton.Font = Enum.Font.GothamBold
 teleportButton.AutoButtonColor = false
 teleportButton.BorderSizePixel = 0
-teleportButton.Parent = contentFrame
+teleportButton.Parent = panel1
 
 local teleportCorner = Instance.new("UICorner")
 teleportCorner.CornerRadius = UDim.new(0, 12)
 teleportCorner.Parent = teleportButton
 
-local buttonGlow = Instance.new("UIStroke")
-buttonGlow.Color = Color3.fromRGB(0, 150, 255)
-buttonGlow.Thickness = 3
-buttonGlow.Transparency = 0.5
-buttonGlow.Parent = teleportButton
-
 -- Счётчик
 local counterLabel = Instance.new("TextLabel")
 counterLabel.Size = UDim2.new(1, -40, 0, 25)
-counterLabel.Position = UDim2.new(0, 20, 0, 390)
+counterLabel.Position = UDim2.new(0, 20, 0, 400)
 counterLabel.BackgroundTransparency = 1
 counterLabel.Text = "Телепортов: 0"
 counterLabel.TextColor3 = Color3.fromRGB(150, 150, 180)
 counterLabel.TextSize = 13
 counterLabel.Font = Enum.Font.SourceSans
 counterLabel.TextXAlignment = Enum.TextXAlignment.Center
-counterLabel.Parent = contentFrame
+counterLabel.Parent = panel1
+
+-- ===== ПАНЕЛЬ 2 (VELOCITY НАСТРОЙКИ) =====
+local velocityLabel = Instance.new("TextLabel")
+velocityLabel.Size = UDim2.new(1, -40, 0, 30)
+velocityLabel.Position = UDim2.new(0, 20, 0, 15)
+velocityLabel.BackgroundTransparency = 1
+velocityLabel.Text = "⚡ Настройка скорости Velocity метода:"
+velocityLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
+velocityLabel.TextSize = 14
+velocityLabel.Font = Enum.Font.GothamBold
+velocityLabel.TextXAlignment = Enum.TextXAlignment.Left
+velocityLabel.Parent = panel2
+
+local velocityValueLabel = Instance.new("TextLabel")
+velocityValueLabel.Size = UDim2.new(1, -40, 0, 40)
+velocityValueLabel.Position = UDim2.new(0, 20, 0, 45)
+velocityValueLabel.BackgroundTransparency = 1
+velocityValueLabel.Text = "Скорость: x1.0 (обычная)"
+velocityValueLabel.TextColor3 = Color3.fromRGB(0, 200, 255)
+velocityValueLabel.TextSize = 18
+velocityValueLabel.Font = Enum.Font.GothamBold
+velocityValueLabel.TextXAlignment = Enum.TextXAlignment.Center
+velocityValueLabel.Parent = panel2
+
+-- Ползунок скорости
+local velocitySliderFrame = Instance.new("Frame")
+velocitySliderFrame.Size = UDim2.new(0, 350, 0, 4)
+velocitySliderFrame.Position = UDim2.new(0.5, -175, 0, 100)
+velocitySliderFrame.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+velocitySliderFrame.BorderSizePixel = 0
+velocitySliderFrame.Parent = panel2
+
+local velocitySliderCorner = Instance.new("UICorner")
+velocitySliderCorner.CornerRadius = UDim.new(0, 2)
+velocitySliderCorner.Parent = velocitySliderFrame
+
+local velocitySliderFill = Instance.new("Frame")
+velocitySliderFill.Size = UDim2.new(0.5, 0, 1, 0)
+velocitySliderFill.BackgroundColor3 = Color3.fromRGB(255, 100, 0)
+velocitySliderFill.BorderSizePixel = 0
+velocitySliderFill.Parent = velocitySliderFrame
+
+local velocitySliderButton = Instance.new("TextButton")
+velocitySliderButton.Size = UDim2.new(0, 20, 0, 20)
+velocitySliderButton.Position = UDim2.new(0.5, -10, 0.5, -10)
+velocitySliderButton.BackgroundColor3 = Color3.fromRGB(255, 100, 0)
+velocitySliderButton.Text = ""
+velocitySliderButton.BorderSizePixel = 0
+velocitySliderButton.Parent = velocitySliderFrame
+
+local velocityButtonCorner = Instance.new("UICorner")
+velocityButtonCorner.CornerRadius = UDim.new(1, 0)
+velocityButtonCorner.Parent = velocitySliderButton
+
+-- Текущая скорость
+local currentSpeedLabel = Instance.new("TextLabel")
+currentSpeedLabel.Size = UDim2.new(1, -40, 0, 30)
+currentSpeedLabel.Position = UDim2.new(0, 20, 0, 130)
+currentSpeedLabel.BackgroundTransparency = 1
+currentSpeedLabel.Text = "Текущий множитель: 1.0x"
+currentSpeedLabel.TextColor3 = Color3.fromRGB(255, 200, 100)
+currentSpeedLabel.TextSize = 16
+currentSpeedLabel.Font = Enum.Font.GothamBold
+currentSpeedLabel.TextXAlignment = Enum.TextXAlignment.Center
+currentSpeedLabel.Parent = panel2
+
+-- Поле ввода скорости
+local velocityInputBox = Instance.new("TextBox")
+velocityInputBox.Size = UDim2.new(0, 150, 0, 35)
+velocityInputBox.Position = UDim2.new(0.5, -75, 0, 175)
+velocityInputBox.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
+velocityInputBox.Text = "1.0"
+velocityInputBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+velocityInputBox.TextSize = 16
+velocityInputBox.Font = Enum.Font.Gotham
+velocityInputBox.PlaceholderText = "Множитель (0.1 - 5.0)"
+velocityInputBox.ClearTextOnFocus = false
+velocityInputBox.Parent = panel2
+
+local velocityApplyButton = Instance.new("TextButton")
+velocityApplyButton.Size = UDim2.new(0, 100, 0, 35)
+velocityApplyButton.Position = UDim2.new(0.5, 55, 0, 175)
+velocityApplyButton.BackgroundColor3 = Color3.fromRGB(60, 60, 90)
+velocityApplyButton.Text = "Применить"
+velocityApplyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+velocityApplyButton.TextSize = 14
+velocityApplyButton.Font = Enum.Font.Gotham
+velocityApplyButton.BorderSizePixel = 0
+velocityApplyButton.Parent = panel2
+
+-- Кнопки быстрой скорости
+local speedPresetFrame = Instance.new("Frame")
+speedPresetFrame.Size = UDim2.new(0, 360, 0, 30)
+speedPresetFrame.Position = UDim2.new(0.5, -180, 0, 225)
+speedPresetFrame.BackgroundTransparency = 1
+speedPresetFrame.Parent = panel2
+
+local speedPresets = {"0.5", "1.0", "1.5", "2.0", "3.0", "5.0"}
+for i, value in ipairs(speedPresets) do
+    local presetButton = Instance.new("TextButton")
+    presetButton.Size = UDim2.new(0, 55, 1, 0)
+    presetButton.Position = UDim2.new(0, (i-1) * 58, 0, 0)
+    presetButton.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
+    presetButton.Text = value .. "x"
+    presetButton.TextColor3 = Color3.fromRGB(200, 200, 220)
+    presetButton.TextSize = 12
+    presetButton.Font = Enum.Font.Gotham
+    presetButton.BorderSizePixel = 0
+    presetButton.Parent = speedPresetFrame
+    
+    local presetCorner = Instance.new("UICorner")
+    presetCorner.CornerRadius = UDim.new(0, 4)
+    presetCorner.Parent = presetButton
+    
+    presetButton.MouseButton1Click:Connect(function()
+        local numValue = tonumber(value)
+        if numValue then
+            velocityMultiplier = numValue
+            updateVelocitySlider(velocityMultiplier)
+            velocityInputBox.Text = tostring(velocityMultiplier)
+            currentSpeedLabel.Text = "Текущий множитель: " .. velocityMultiplier .. "x"
+            velocityValueLabel.Text = string.format("Скорость: x%.1f (%s)", velocityMultiplier, 
+                velocityMultiplier == 1 and "обычная" or 
+                velocityMultiplier < 1 and "медленнее" or 
+                "быстрее")
+        end
+    end)
+end
+
+-- Информационный текст
+local infoText = Instance.new("TextLabel")
+infoText.Size = UDim2.new(1, -40, 0, 60)
+infoText.Position = UDim2.new(0, 20, 0, 270)
+infoText.BackgroundTransparency = 1
+infoText.Text = "💡 Чем выше множитель, тем быстрее\nвы телепортируетесь. Высокая скорость\nможет быть заметна анти-читу!"
+infoText.TextColor3 = Color3.fromRGB(150, 150, 180)
+infoText.TextSize = 12
+infoText.Font = Enum.Font.Gotham
+infoText.TextXAlignment = Enum.TextXAlignment.Center
+infoText.Parent = panel2
 
 -- Переменные
 local teleportHeight = 10000
 local teleportCount = 0
 local isDraggingSlider = false
+local isDraggingVelocitySlider = false
 local selectedMethod = "Velocity"
 local currentCharacter = nil
 local isAlive = true
+local velocityMultiplier = 1.0
 
--- ===== ПРОСТАЯ И НАДЁЖНАЯ СИСТЕМА ПЕРЕТАСКИВАНИЯ =====
-local dragging = false
-local dragStartMousePos = Vector2.new()
-local dragStartFramePos = Vector2.new()
-
-titleBar.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        dragging = true
-        
-        -- Запоминаем позицию мыши
-        dragStartMousePos = Vector2.new(input.Position.X, input.Position.Y)
-        
-        -- Запоминаем текущую позицию фрейма в пикселях
-        dragStartFramePos = Vector2.new(mainFrame.AbsolutePosition.X, mainFrame.AbsolutePosition.Y)
-        
-        -- Визуальный эффект
-        titleBar.BackgroundColor3 = Color3.fromRGB(70, 70, 95)
-        
-        print("Начали перетаскивание") -- Для отладки
-    end
-end)
-
-titleBar.InputChanged:Connect(function(input)
-    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-        -- Получаем текущую позицию мыши
-        local currentMousePos = Vector2.new(input.Position.X, input.Position.Y)
-        
-        -- Вычисляем смещение
-        local delta = currentMousePos - dragStartMousePos
-        
-        -- Новая позиция фрейма
-        local newX = dragStartFramePos.X + delta.X
-        local newY = dragStartFramePos.Y + delta.Y
-        
-        -- Получаем размеры экрана
-        local screenSize = workspace.CurrentCamera.ViewportSize
-        local frameSize = mainFrame.AbsoluteSize
-        
-        -- Ограничиваем, чтобы окно не выходило за экран
-        newX = math.clamp(newX, 0, screenSize.X - frameSize.X)
-        newY = math.clamp(newY, 0, screenSize.Y - frameSize.Y)
-        
-        -- Применяем новую позицию
-        mainFrame.Position = UDim2.new(0, newX, 0, newY)
-    end
-end)
-
-titleBar.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 and dragging then
-        dragging = false
-        titleBar.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
-        print("Закончили перетаскивание") -- Для отладки
-    end
-end)
-
--- Функции ползунка
+-- Функции ползунка высоты
 local function updateSliderValue(value)
     local minVal = 1
     local maxVal = 1000000
@@ -331,7 +446,27 @@ local function getValueFromSliderPosition(inputPosition)
     return math.floor(minVal + (maxVal - minVal) * percent)
 end
 
--- Обработка ползунка
+-- Функции ползунка скорости
+local function updateVelocitySlider(value)
+    local minVal = 0.1
+    local maxVal = 5.0
+    local percent = (value - minVal) / (maxVal - minVal)
+    percent = math.clamp(percent, 0, 1)
+    velocitySliderFill.Size = UDim2.new(percent, 0, 1, 0)
+    velocitySliderButton.Position = UDim2.new(percent, -10, 0.5, -10)
+end
+
+local function getValueFromVelocitySliderPosition(inputPosition)
+    local sliderAbsPos = velocitySliderFrame.AbsolutePosition
+    local sliderWidth = velocitySliderFrame.AbsoluteSize.X
+    local clickX = inputPosition.X - sliderAbsPos.X
+    local percent = math.clamp(clickX / sliderWidth, 0, 1)
+    local minVal = 0.1
+    local maxVal = 5.0
+    return minVal + (maxVal - minVal) * percent
+end
+
+-- Обработка ползунка высоты
 sliderButton.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
         isDraggingSlider = true
@@ -343,6 +478,22 @@ sliderButton.InputBegan:Connect(function(input)
     end
 end)
 
+-- Обработка ползунка скорости
+velocitySliderButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isDraggingVelocitySlider = true
+        local newValue = getValueFromVelocitySliderPosition(input.Position)
+        velocityMultiplier = math.clamp(newValue, 0.1, 5.0)
+        updateVelocitySlider(velocityMultiplier)
+        velocityInputBox.Text = string.format("%.1f", velocityMultiplier)
+        currentSpeedLabel.Text = "Текущий множитель: " .. string.format("%.1f", velocityMultiplier) .. "x"
+        velocityValueLabel.Text = string.format("Скорость: x%.1f (%s)", velocityMultiplier, 
+            velocityMultiplier == 1 and "обычная" or 
+            velocityMultiplier < 1 and "медленнее" or 
+            "быстрее")
+    end
+end)
+
 UserInputService.InputChanged:Connect(function(input)
     if isDraggingSlider and input.UserInputType == Enum.UserInputType.MouseMovement then
         local newValue = getValueFromSliderPosition(input.Position)
@@ -350,12 +501,23 @@ UserInputService.InputChanged:Connect(function(input)
         updateSliderValue(teleportHeight)
         inputBox.Text = tostring(teleportHeight)
         valueLabel.Text = formatNumber(teleportHeight) .. " студней"
+    elseif isDraggingVelocitySlider and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local newValue = getValueFromVelocitySliderPosition(input.Position)
+        velocityMultiplier = math.clamp(newValue, 0.1, 5.0)
+        updateVelocitySlider(velocityMultiplier)
+        velocityInputBox.Text = string.format("%.1f", velocityMultiplier)
+        currentSpeedLabel.Text = "Текущий множитель: " .. string.format("%.1f", velocityMultiplier) .. "x"
+        velocityValueLabel.Text = string.format("Скорость: x%.1f (%s)", velocityMultiplier, 
+            velocityMultiplier == 1 and "обычная" or 
+            velocityMultiplier < 1 and "медленнее" or 
+            "быстрее")
     end
 end)
 
 UserInputService.InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
         isDraggingSlider = false
+        isDraggingVelocitySlider = false
     end
 end)
 
@@ -369,7 +531,21 @@ sliderFrame.InputBegan:Connect(function(input)
     end
 end)
 
--- Применение значения
+velocitySliderFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        local newValue = getValueFromVelocitySliderPosition(input.Position)
+        velocityMultiplier = math.clamp(newValue, 0.1, 5.0)
+        updateVelocitySlider(velocityMultiplier)
+        velocityInputBox.Text = string.format("%.1f", velocityMultiplier)
+        currentSpeedLabel.Text = "Текущий множитель: " .. string.format("%.1f", velocityMultiplier) .. "x"
+        velocityValueLabel.Text = string.format("Скорость: x%.1f (%s)", velocityMultiplier, 
+            velocityMultiplier == 1 and "обычная" or 
+            velocityMultiplier < 1 and "медленнее" or 
+            "быстрее")
+    end
+end)
+
+-- Применение значений
 local function applyInputValue()
     local numValue = tonumber(inputBox.Text)
     if numValue then
@@ -383,9 +559,31 @@ local function applyInputValue()
     end
 end
 
+local function applyVelocityInput()
+    local numValue = tonumber(velocityInputBox.Text)
+    if numValue then
+        numValue = math.clamp(numValue, 0.1, 5.0)
+        velocityMultiplier = numValue
+        updateVelocitySlider(velocityMultiplier)
+        velocityInputBox.Text = string.format("%.1f", velocityMultiplier)
+        currentSpeedLabel.Text = "Текущий множитель: " .. string.format("%.1f", velocityMultiplier) .. "x"
+        velocityValueLabel.Text = string.format("Скорость: x%.1f (%s)", velocityMultiplier, 
+            velocityMultiplier == 1 and "обычная" or 
+            velocityMultiplier < 1 and "медленнее" or 
+            "быстрее")
+    else
+        velocityInputBox.Text = string.format("%.1f", velocityMultiplier)
+    end
+end
+
 applyButton.MouseButton1Click:Connect(applyInputValue)
 inputBox.FocusLost:Connect(function(enterPressed)
     if enterPressed then applyInputValue() end
+end)
+
+velocityApplyButton.MouseButton1Click:Connect(applyVelocityInput)
+velocityInputBox.FocusLost:Connect(function(enterPressed)
+    if enterPressed then applyVelocityInput() end
 end)
 
 -- Форматирование чисел
@@ -411,7 +609,8 @@ local function teleportViaVelocity(height)
         local originalGravity = workspace.Gravity
         workspace.Gravity = 0
         
-        local velocity = math.sqrt(2 * height * 50)
+        -- Применяем множитель скорости
+        local velocity = math.sqrt(2 * height * 50) * velocityMultiplier
         hrp.Velocity = Vector3.new(0, velocity, 0)
         hrp.AssemblyLinearVelocity = Vector3.new(0, velocity, 0)
         
@@ -503,7 +702,8 @@ local function teleportUp()
     
     if success then
         teleportCount = teleportCount + 1
-        counterLabel.Text = "Телепортов: " .. teleportCount .. " [" .. selectedMethod .. "]"
+        local speedText = (selectedMethod == "Velocity" and string.format(" (x%.1f)", velocityMultiplier) or "")
+        counterLabel.Text = "Телепортов: " .. teleportCount .. " [" .. selectedMethod .. speedText .. "]"
         statusLabel.Text = "✅ Телепорт успешен!"
         statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
         
@@ -537,6 +737,25 @@ local function teleportUp()
         statusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
     end
 end
+
+-- Переключение вкладок
+tab1.MouseButton1Click:Connect(function()
+    panel1.Visible = true
+    panel2.Visible = false
+    tab1.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+    tab2.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
+    tab1.TextColor3 = Color3.fromRGB(255, 255, 255)
+    tab2.TextColor3 = Color3.fromRGB(200, 200, 220)
+end)
+
+tab2.MouseButton1Click:Connect(function()
+    panel1.Visible = false
+    panel2.Visible = true
+    tab1.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
+    tab2.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+    tab1.TextColor3 = Color3.fromRGB(200, 200, 220)
+    tab2.TextColor3 = Color3.fromRGB(255, 255, 255)
+end)
 
 -- Отслеживание перерождения
 local function onCharacterAdded(newChar)
@@ -592,26 +811,22 @@ teleportButton.MouseButton1Click:Connect(teleportUp)
 teleportButton.MouseEnter:Connect(function()
     teleportButton.BackgroundColor3 = Color3.fromRGB(50, 170, 255)
     teleportButton.Size = UDim2.new(0, 290, 0, 75)
-    buttonGlow.Transparency = 0.2
-    buttonGlow.Thickness = 4
 end)
 
 teleportButton.MouseLeave:Connect(function()
     teleportButton.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
     teleportButton.Size = UDim2.new(0, 280, 0, 70)
-    buttonGlow.Transparency = 0.5
-    buttonGlow.Thickness = 3
 end)
 
 closeButton.MouseButton1Click:Connect(function()
     screenGui:Destroy()
 end)
 
--- Быстрые настройки
+-- Быстрые настройки высоты
 for i, value in ipairs({"100", "1000", "10000", "100000", "1000000"}) do
     local presetButton = Instance.new("TextButton")
-    presetButton.Size = UDim2.new(0, 65, 1, 0)
-    presetButton.Position = UDim2.new(0, (i-1) * 70, 0, 0)
+    presetButton.Size = UDim2.new(0, 75, 1, 0)
+    presetButton.Position = UDim2.new(0, (i-1) * 78, 0, 0)
     presetButton.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
     presetButton.Text = value .. (value == "1000000" and "M" or (value == "100000" and "K" or ""))
     presetButton.TextColor3 = Color3.fromRGB(200, 200, 220)
@@ -643,20 +858,58 @@ for i, value in ipairs({"100", "1000", "10000", "100000", "1000000"}) do
     end)
 end
 
+-- Перетаскивание окна
+local dragging = false
+local dragStartMousePos = Vector2.new()
+local dragStartFramePos = Vector2.new()
+
+titleBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStartMousePos = Vector2.new(input.Position.X, input.Position.Y)
+        dragStartFramePos = Vector2.new(mainFrame.AbsolutePosition.X, mainFrame.AbsolutePosition.Y)
+        titleBar.BackgroundColor3 = Color3.fromRGB(70, 70, 95)
+    end
+end)
+
+titleBar.InputChanged:Connect(function(input)
+    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local currentMousePos = Vector2.new(input.Position.X, input.Position.Y)
+        local delta = currentMousePos - dragStartMousePos
+        local newX = dragStartFramePos.X + delta.X
+        local newY = dragStartFramePos.Y + delta.Y
+        
+        local screenSize = workspace.CurrentCamera.ViewportSize
+        local frameSize = mainFrame.AbsoluteSize
+        
+        newX = math.clamp(newX, 0, screenSize.X - frameSize.X)
+        newY = math.clamp(newY, 0, screenSize.Y - frameSize.Y)
+        
+        mainFrame.Position = UDim2.new(0, newX, 0, newY)
+    end
+end)
+
+titleBar.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 and dragging then
+        dragging = false
+        titleBar.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
+    end
+end)
+
 -- Сворачивание
 local minimized = false
 minimizeButton.MouseButton1Click:Connect(function()
     minimized = not minimized
     if minimized then
         local minimizeTween = TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
-            Size = UDim2.new(0, 400, 0, 45)
+            Size = UDim2.new(0, 450, 0, 45)
         })
         minimizeTween:Play()
         contentFrame.Visible = false
         minimizeButton.Text = "□"
     else
         local maximizeTween = TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
-            Size = UDim2.new(0, 400, 0, 420)
+            Size = UDim2.new(0, 450, 0, 500)
         })
         maximizeTween:Play()
         contentFrame.Visible = true
@@ -666,6 +919,7 @@ end)
 
 -- Инициализация
 updateSliderValue(teleportHeight)
+updateVelocitySlider(velocityMultiplier)
 
 -- Анимация появления
 mainFrame.BackgroundTransparency = 1
