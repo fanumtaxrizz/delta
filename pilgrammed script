@@ -4,39 +4,17 @@ local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 
-local character = player.Character or player.CharacterAdded:Wait()
 local distance = 500
 local isShooting = false
-local currentArrow = "Arrow"  -- ИЗМЕНЕНО: теперь "Arrow" вместо "Ice Arrow"
-local toggleKey = Enum.KeyCode.T  -- ИЗМЕНЕНО: теперь T вместо R
+local currentArrow = "Arrow"
+local toggleKey = Enum.KeyCode.T
 
--- Ждём лук
-local bow = character:WaitForChild("Prism Bow")
-local shoot = bow:WaitForChild("Shoot")
+-- ===== ПЕРЕМЕННЫЕ ДЛЯ ЛУКА =====
+local bow = nil
+local shoot = nil
+local character = player.Character
 
--- Функция выстрела
-local function shootArrow()
-    if not player.Character or not player.Character:FindFirstChild("Prism Bow") then 
-        isShooting = false
-        return 
-    end
-    
-    local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
-    local targetPosition = humanoidRootPart.Position + humanoidRootPart.CFrame.LookVector * distance
-    
-    local args = {
-        targetPosition,
-        currentArrow,
-        true,
-        1
-    }
-    
-    pcall(function()
-        shoot:InvokeServer(unpack(args))
-    end)
-end
-
--- ===== СОЗДАНИЕ GUI =====
+-- ===== СОЗДАНИЕ GUI (СРАЗУ, БЕЗ ОЖИДАНИЯ ЛУКА) =====
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "ArrowShooterGUI"
 screenGui.ResetOnSpawn = false
@@ -163,10 +141,22 @@ statusText.Font = Enum.Font.GothamSemibold
 statusText.TextSize = 14
 statusText.Parent = statusFrame
 
+-- Статус лука
+local bowStatusText = Instance.new("TextLabel")
+bowStatusText.Size = UDim2.new(1, 0, 0, 20)
+bowStatusText.Position = UDim2.new(0, 0, 0, 42)
+bowStatusText.BackgroundTransparency = 1
+bowStatusText.Text = "🎯 Лук: НЕ НАЙДЕН"
+bowStatusText.TextColor3 = Color3.fromRGB(255, 100, 100)
+bowStatusText.TextXAlignment = Enum.TextXAlignment.Left
+bowStatusText.Font = Enum.Font.Gotham
+bowStatusText.TextSize = 11
+bowStatusText.Parent = statusFrame
+
 -- Выбор стрелы (текстовое поле)
 local arrowLabel = Instance.new("TextLabel")
 arrowLabel.Size = UDim2.new(1, 0, 0, 25)
-arrowLabel.Position = UDim2.new(0, 0, 0, 55)
+arrowLabel.Position = UDim2.new(0, 0, 0, 75)
 arrowLabel.BackgroundTransparency = 1
 arrowLabel.Text = "🏹 Название стрелы:"
 arrowLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
@@ -178,10 +168,10 @@ arrowLabel.Parent = contentFrame
 -- Поле ввода названия стрелы
 local arrowInput = Instance.new("TextBox")
 arrowInput.Size = UDim2.new(1, 0, 0, 40)
-arrowInput.Position = UDim2.new(0, 0, 0, 80)
+arrowInput.Position = UDim2.new(0, 0, 0, 100)
 arrowInput.BackgroundColor3 = Color3.fromRGB(55, 65, 90)
 arrowInput.BorderSizePixel = 0
-arrowInput.Text = currentArrow  -- Теперь будет "Arrow"
+arrowInput.Text = currentArrow
 arrowInput.TextColor3 = Color3.fromRGB(255, 255, 255)
 arrowInput.Font = Enum.Font.Gotham
 arrowInput.TextSize = 14
@@ -196,7 +186,7 @@ arrowInputCorners.Parent = arrowInput
 -- Кнопка применить название стрелы
 local applyArrowButton = Instance.new("TextButton")
 applyArrowButton.Size = UDim2.new(1, 0, 0, 35)
-applyArrowButton.Position = UDim2.new(0, 0, 0, 125)
+applyArrowButton.Position = UDim2.new(0, 0, 0, 145)
 applyArrowButton.BackgroundColor3 = Color3.fromRGB(80, 140, 200)
 applyArrowButton.BorderSizePixel = 0
 applyArrowButton.Text = "Применить стрелу"
@@ -208,18 +198,6 @@ applyArrowButton.Parent = contentFrame
 local applyButtonCorners = Instance.new("UICorner")
 applyButtonCorners.CornerRadius = UDim.new(0, 6)
 applyButtonCorners.Parent = applyArrowButton
-
--- Подсказка
-local arrowHint = Instance.new("TextLabel")
-arrowHint.Size = UDim2.new(1, 0, 0, 20)
-arrowHint.Position = UDim2.new(0, 0, 0, 164)
-arrowHint.BackgroundTransparency = 1
-arrowHint.Text = "💡 Можно вписать ЛЮБОЕ название стрелы"
-arrowHint.TextColor3 = Color3.fromRGB(150, 200, 150)
-arrowHint.TextXAlignment = Enum.TextXAlignment.Left
-arrowHint.Font = Enum.Font.Gotham
-arrowHint.TextSize = 11
-arrowHint.Parent = contentFrame
 
 -- Настройка клавиши
 local keybindLabel = Instance.new("TextLabel")
@@ -249,7 +227,7 @@ keybindText.Size = UDim2.new(0.5, -10, 1, -10)
 keybindText.Position = UDim2.new(0, 10, 0, 5)
 keybindText.BackgroundColor3 = Color3.fromRGB(55, 65, 90)
 keybindText.BorderSizePixel = 0
-keybindText.Text = tostring(toggleKey):gsub("Enum.KeyCode.", "")  -- Теперь будет "T"
+keybindText.Text = tostring(toggleKey):gsub("Enum.KeyCode.", "")
 keybindText.TextColor3 = Color3.fromRGB(255, 255, 255)
 keybindText.Font = Enum.Font.GothamBold
 keybindText.TextSize = 18
@@ -319,7 +297,89 @@ infoText.Font = Enum.Font.Gotham
 infoText.TextSize = 11
 infoText.Parent = contentFrame
 
--- Логика стрельбы
+-- ===== ФУНКЦИЯ ПОИСКА ЛУКА =====
+local function findBow()
+    local currentCharacter = player.Character
+    if not currentCharacter then
+        bow = nil
+        shoot = nil
+        bowStatusText.Text = "🎯 Лук: ПЕРСОНАЖ ОТСУТСТВУЕТ"
+        bowStatusText.TextColor3 = Color3.fromRGB(255, 100, 100)
+        return false
+    end
+    
+    local foundBow = currentCharacter:FindFirstChild("Prism Bow")
+    if foundBow then
+        bow = foundBow
+        shoot = bow:FindFirstChild("Shoot")
+        if shoot then
+            bowStatusText.Text = "🎯 Лук: НАЙДЕН ✅"
+            bowStatusText.TextColor3 = Color3.fromRGB(100, 255, 100)
+            return true
+        else
+            bowStatusText.Text = "🎯 Лук: НЕТ КОМПОНЕНТА SHOOT"
+            bowStatusText.TextColor3 = Color3.fromRGB(255, 200, 100)
+        end
+    else
+        bowStatusText.Text = "🎯 Лук: НЕ НАЙДЕН"
+        bowStatusText.TextColor3 = Color3.fromRGB(255, 100, 100)
+    end
+    
+    bow = nil
+    shoot = nil
+    return false
+end
+
+-- Функция выстрела (с проверкой наличия лука)
+local function shootArrow()
+    if not isShooting then return end
+    
+    -- Проверяем лук каждый раз
+    if not bow or not shoot then
+        if not findBow() then
+            return
+        end
+    end
+    
+    local currentCharacter = player.Character
+    if not currentCharacter then return end
+    
+    local humanoidRootPart = currentCharacter:FindFirstChild("HumanoidRootPart")
+    if not humanoidRootPart then return end
+    
+    local targetPosition = humanoidRootPart.Position + humanoidRootPart.CFrame.LookVector * distance
+    
+    local args = {
+        targetPosition,
+        currentArrow,
+        true,
+        1
+    }
+    
+    pcall(function()
+        shoot:InvokeServer(unpack(args))
+    end)
+end
+
+-- Поиск лука при смене персонажа или предмета
+player.CharacterAdded:Connect(function(newCharacter)
+    character = newCharacter
+    findBow()
+end)
+
+-- Также проверяем при добавлении предметов (если лук появился позже)
+if player.Character then
+    player.Character.ChildAdded:Connect(function(child)
+        if child.Name == "Prism Bow" then
+            findBow()
+        end
+    end)
+end
+
+-- Начальный поиск лука
+findBow()
+
+-- ===== ЛОГИКА СТРЕЛЬБЫ =====
 local renderConnection = nil
 
 local function startShooting()
@@ -367,19 +427,16 @@ applyArrowButton.MouseButton1Click:Connect(function()
         currentArrowDisplay.Text = "📌 Текущая: " .. currentArrow
         print("Стрела изменена на: " .. currentArrow)
         
-        -- Визуальный фидбек
         applyArrowButton.BackgroundColor3 = Color3.fromRGB(100, 200, 100)
         task.wait(0.2)
         applyArrowButton.BackgroundColor3 = Color3.fromRGB(80, 140, 200)
     else
-        -- Если пустое название
         applyArrowButton.BackgroundColor3 = Color3.fromRGB(200, 80, 80)
         task.wait(0.2)
         applyArrowButton.BackgroundColor3 = Color3.fromRGB(80, 140, 200)
     end
 end)
 
--- Также можно применять по нажатию Enter в текстовом поле
 arrowInput.FocusLost:Connect(function(enterPressed)
     if enterPressed then
         local newArrow = arrowInput.Text
@@ -477,6 +534,6 @@ UserInputService.InputChanged:Connect(function(input)
     end
 end)
 
-print("✅ GUI загружен! Нажми T для стрельбы (или любую другую клавишу после бинда)")
-print("💡 Стрела по умолчанию: Arrow")
-print("💡 Клавиша по умолчанию: T")
+print("✅ GUI загружен! (не требует наличия лука)")
+print("💡 Стрела по умолчанию: Arrow | Клавиша: T")
+print("🎯 Лук будет найден автоматически, когда вы его возьмёте")
