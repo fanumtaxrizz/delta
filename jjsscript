@@ -1,15 +1,23 @@
--- Обход анти-чита с кейбиндами и горячими клавишами
+-- Обход анти-чита с переключаемым Аимботом
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
 
 local player = Players.LocalPlayer
+local camera = Workspace.CurrentCamera
 
 -- Переменные для кейбиндов
 local teleportKeybind = "T" -- Клавиша для телепортации
 local hideKeybind = "H" -- Клавиша для скрытия/показа меню
+local aimbotKeybind = "C" -- Клавиша для переключения аимбота
 local isMenuVisible = true
+local aimbotEnabled = false -- Включен ли аимбот (переключаемый)
+
+-- Переменные для спрея (разброса)
+local sprayEnabled = true -- Включен ли спрей
+local sprayAmount = 0.05 -- Величина разброса
 
 -- Создаём GUI
 local screenGui = Instance.new("ScreenGui")
@@ -18,8 +26,8 @@ screenGui.ResetOnSpawn = false
 screenGui.Parent = player:WaitForChild("PlayerGui")
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 450, 0, 550)
-mainFrame.Position = UDim2.new(0.5, -225, 0.5, -275)
+mainFrame.Size = UDim2.new(0, 480, 0, 650)
+mainFrame.Position = UDim2.new(0.5, -240, 0.5, -325)
 mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
 mainFrame.BackgroundTransparency = 0.05
 mainFrame.BorderSizePixel = 0
@@ -43,7 +51,7 @@ local titleLabel = Instance.new("TextLabel")
 titleLabel.Size = UDim2.new(1, -40, 1, 0)
 titleLabel.Position = UDim2.new(0, 15, 0, 0)
 titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "🚀 ТЕЛЕПОРТ МЕНЮ (тяни за заголовок)"
+titleLabel.Text = "🚀 ТЕЛЕПОРТ + АИМБОТ МЕНЮ (тяни за заголовок)"
 titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleLabel.TextSize = 16
 titleLabel.Font = Enum.Font.GothamBold
@@ -98,37 +106,48 @@ tabBar.BackgroundTransparency = 0.5
 tabBar.Parent = contentFrame
 
 local tab1 = Instance.new("TextButton")
-tab1.Size = UDim2.new(0.33, 0, 1, 0)
+tab1.Size = UDim2.new(0.25, 0, 1, 0)
 tab1.Position = UDim2.new(0, 0, 0, 0)
 tab1.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
 tab1.Text = "📊 Основное"
 tab1.TextColor3 = Color3.fromRGB(255, 255, 255)
-tab1.TextSize = 14
+tab1.TextSize = 12
 tab1.Font = Enum.Font.GothamBold
 tab1.BorderSizePixel = 0
 tab1.Parent = tabBar
 
 local tab2 = Instance.new("TextButton")
-tab2.Size = UDim2.new(0.33, 0, 1, 0)
-tab2.Position = UDim2.new(0.33, 0, 0, 0)
+tab2.Size = UDim2.new(0.25, 0, 1, 0)
+tab2.Position = UDim2.new(0.25, 0, 0, 0)
 tab2.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
 tab2.Text = "⚡ Velocity"
 tab2.TextColor3 = Color3.fromRGB(200, 200, 220)
-tab2.TextSize = 14
+tab2.TextSize = 12
 tab2.Font = Enum.Font.GothamBold
 tab2.BorderSizePixel = 0
 tab2.Parent = tabBar
 
 local tab3 = Instance.new("TextButton")
-tab3.Size = UDim2.new(0.34, 0, 1, 0)
-tab3.Position = UDim2.new(0.66, 0, 0, 0)
+tab3.Size = UDim2.new(0.25, 0, 1, 0)
+tab3.Position = UDim2.new(0.5, 0, 0, 0)
 tab3.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
 tab3.Text = "⌨️ Кейбинды"
 tab3.TextColor3 = Color3.fromRGB(200, 200, 220)
-tab3.TextSize = 14
+tab3.TextSize = 12
 tab3.Font = Enum.Font.GothamBold
 tab3.BorderSizePixel = 0
 tab3.Parent = tabBar
+
+local tab4 = Instance.new("TextButton")
+tab4.Size = UDim2.new(0.25, 0, 1, 0)
+tab4.Position = UDim2.new(0.75, 0, 0, 0)
+tab4.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
+tab4.Text = "🎯 Аимбот"
+tab4.TextColor3 = Color3.fromRGB(200, 200, 220)
+tab4.TextSize = 12
+tab4.Font = Enum.Font.GothamBold
+tab4.BorderSizePixel = 0
+tab4.Parent = tabBar
 
 -- Панель 1 (Основная)
 local panel1 = Instance.new("Frame")
@@ -153,6 +172,14 @@ panel3.BackgroundTransparency = 1
 panel3.Visible = false
 panel3.Parent = contentFrame
 
+-- Панель 4 (Аимбот)
+local panel4 = Instance.new("Frame")
+panel4.Size = UDim2.new(1, 0, 1, -35)
+panel4.Position = UDim2.new(0, 0, 0, 35)
+panel4.BackgroundTransparency = 1
+panel4.Visible = false
+panel4.Parent = contentFrame
+
 -- ===== ПАНЕЛЬ 1 (ОСНОВНАЯ) =====
 local settingsLabel = Instance.new("TextLabel")
 settingsLabel.Size = UDim2.new(1, -40, 0, 30)
@@ -171,7 +198,7 @@ valueLabel.Position = UDim2.new(0, 20, 0, 45)
 valueLabel.BackgroundTransparency = 1
 valueLabel.Text = "10 000 студней"
 valueLabel.TextColor3 = Color3.fromRGB(0, 200, 255)
-valueLabel.TextSize = 22
+valueLabel.TextSize = 20
 valueLabel.Font = Enum.Font.GothamBold
 valueLabel.TextXAlignment = Enum.TextXAlignment.Center
 valueLabel.Parent = panel1
@@ -273,12 +300,12 @@ statusLabel.Parent = panel1
 
 -- Кнопка телепортации
 local teleportButton = Instance.new("TextButton")
-teleportButton.Size = UDim2.new(0, 280, 0, 70)
+teleportButton.Size = UDim2.new(0, 280, 0, 60)
 teleportButton.Position = UDim2.new(0.5, -140, 0, 310)
 teleportButton.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
 teleportButton.Text = "🚀 ТЕЛЕПОРТ ВВЕРХ 🚀"
 teleportButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-teleportButton.TextSize = 18
+teleportButton.TextSize = 16
 teleportButton.Font = Enum.Font.GothamBold
 teleportButton.AutoButtonColor = false
 teleportButton.BorderSizePixel = 0
@@ -291,11 +318,11 @@ teleportCorner.Parent = teleportButton
 -- Счётчик
 local counterLabel = Instance.new("TextLabel")
 counterLabel.Size = UDim2.new(1, -40, 0, 25)
-counterLabel.Position = UDim2.new(0, 20, 0, 400)
+counterLabel.Position = UDim2.new(0, 20, 0, 390)
 counterLabel.BackgroundTransparency = 1
 counterLabel.Text = "Телепортов: 0"
 counterLabel.TextColor3 = Color3.fromRGB(150, 150, 180)
-counterLabel.TextSize = 13
+counterLabel.TextSize = 12
 counterLabel.Font = Enum.Font.SourceSans
 counterLabel.TextXAlignment = Enum.TextXAlignment.Center
 counterLabel.Parent = panel1
@@ -318,7 +345,7 @@ velocityValueLabel.Position = UDim2.new(0, 20, 0, 45)
 velocityValueLabel.BackgroundTransparency = 1
 velocityValueLabel.Text = "Скорость: x1.0 (обычная)"
 velocityValueLabel.TextColor3 = Color3.fromRGB(0, 200, 255)
-velocityValueLabel.TextSize = 18
+velocityValueLabel.TextSize = 16
 velocityValueLabel.Font = Enum.Font.GothamBold
 velocityValueLabel.TextXAlignment = Enum.TextXAlignment.Center
 velocityValueLabel.Parent = panel2
@@ -360,7 +387,7 @@ currentSpeedLabel.Position = UDim2.new(0, 20, 0, 130)
 currentSpeedLabel.BackgroundTransparency = 1
 currentSpeedLabel.Text = "Текущий множитель: 1.0x"
 currentSpeedLabel.TextColor3 = Color3.fromRGB(255, 200, 100)
-currentSpeedLabel.TextSize = 16
+currentSpeedLabel.TextSize = 14
 currentSpeedLabel.Font = Enum.Font.GothamBold
 currentSpeedLabel.TextXAlignment = Enum.TextXAlignment.Center
 currentSpeedLabel.Parent = panel2
@@ -405,15 +432,15 @@ keybindLabel.Position = UDim2.new(0, 20, 0, 15)
 keybindLabel.BackgroundTransparency = 1
 keybindLabel.Text = "⌨️ Настройка горячих клавиш"
 keybindLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
-keybindLabel.TextSize = 18
+keybindLabel.TextSize = 16
 keybindLabel.Font = Enum.Font.GothamBold
 keybindLabel.TextXAlignment = Enum.TextXAlignment.Center
 keybindLabel.Parent = panel3
 
 -- Телепорт кейбинд
 local teleportKeyFrame = Instance.new("Frame")
-teleportKeyFrame.Size = UDim2.new(0, 400, 0, 60)
-teleportKeyFrame.Position = UDim2.new(0.5, -200, 0, 70)
+teleportKeyFrame.Size = UDim2.new(0, 400, 0, 50)
+teleportKeyFrame.Position = UDim2.new(0.5, -200, 0, 65)
 teleportKeyFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
 teleportKeyFrame.BackgroundTransparency = 0.5
 teleportKeyFrame.BorderSizePixel = 0
@@ -427,7 +454,7 @@ local teleportKeyLabel = Instance.new("TextLabel")
 teleportKeyLabel.Size = UDim2.new(0.6, 0, 1, 0)
 teleportKeyLabel.Position = UDim2.new(0, 15, 0, 0)
 teleportKeyLabel.BackgroundTransparency = 1
-teleportKeyLabel.Text = "🚀 Клавиша телепортации:"
+teleportKeyLabel.Text = "🚀 Телепорт:"
 teleportKeyLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
 teleportKeyLabel.TextSize = 14
 teleportKeyLabel.Font = Enum.Font.Gotham
@@ -435,12 +462,12 @@ teleportKeyLabel.TextXAlignment = Enum.TextXAlignment.Left
 teleportKeyLabel.Parent = teleportKeyFrame
 
 local teleportKeyButton = Instance.new("TextButton")
-teleportKeyButton.Size = UDim2.new(0, 100, 0, 40)
-teleportKeyButton.Position = UDim2.new(0.7, 0, 0.5, -20)
+teleportKeyButton.Size = UDim2.new(0, 100, 0, 35)
+teleportKeyButton.Position = UDim2.new(0.7, 0, 0.5, -17.5)
 teleportKeyButton.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
 teleportKeyButton.Text = teleportKeybind
 teleportKeyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-teleportKeyButton.TextSize = 20
+teleportKeyButton.TextSize = 18
 teleportKeyButton.Font = Enum.Font.GothamBold
 teleportKeyButton.BorderSizePixel = 0
 teleportKeyButton.Parent = teleportKeyFrame
@@ -451,8 +478,8 @@ teleportKeyCorner2.Parent = teleportKeyButton
 
 -- Скрытие кейбинд
 local hideKeyFrame = Instance.new("Frame")
-hideKeyFrame.Size = UDim2.new(0, 400, 0, 60)
-hideKeyFrame.Position = UDim2.new(0.5, -200, 0, 150)
+hideKeyFrame.Size = UDim2.new(0, 400, 0, 50)
+hideKeyFrame.Position = UDim2.new(0.5, -200, 0, 125)
 hideKeyFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
 hideKeyFrame.BackgroundTransparency = 0.5
 hideKeyFrame.BorderSizePixel = 0
@@ -466,7 +493,7 @@ local hideKeyLabel = Instance.new("TextLabel")
 hideKeyLabel.Size = UDim2.new(0.6, 0, 1, 0)
 hideKeyLabel.Position = UDim2.new(0, 15, 0, 0)
 hideKeyLabel.BackgroundTransparency = 1
-hideKeyLabel.Text = "👁️ Клавиша скрыть/показать:"
+hideKeyLabel.Text = "👁️ Скрыть/показать:"
 hideKeyLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
 hideKeyLabel.TextSize = 14
 hideKeyLabel.Font = Enum.Font.Gotham
@@ -474,12 +501,12 @@ hideKeyLabel.TextXAlignment = Enum.TextXAlignment.Left
 hideKeyLabel.Parent = hideKeyFrame
 
 local hideKeyButton = Instance.new("TextButton")
-hideKeyButton.Size = UDim2.new(0, 100, 0, 40)
-hideKeyButton.Position = UDim2.new(0.7, 0, 0.5, -20)
+hideKeyButton.Size = UDim2.new(0, 100, 0, 35)
+hideKeyButton.Position = UDim2.new(0.7, 0, 0.5, -17.5)
 hideKeyButton.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
 hideKeyButton.Text = hideKeybind
 hideKeyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-hideKeyButton.TextSize = 20
+hideKeyButton.TextSize = 18
 hideKeyButton.Font = Enum.Font.GothamBold
 hideKeyButton.BorderSizePixel = 0
 hideKeyButton.Parent = hideKeyFrame
@@ -488,10 +515,49 @@ local hideKeyCorner2 = Instance.new("UICorner")
 hideKeyCorner2.CornerRadius = UDim.new(0, 6)
 hideKeyCorner2.Parent = hideKeyButton
 
--- Информация о кейбиндах
+-- Аимбот кейбинд
+local aimbotKeyFrame = Instance.new("Frame")
+aimbotKeyFrame.Size = UDim2.new(0, 400, 0, 50)
+aimbotKeyFrame.Position = UDim2.new(0.5, -200, 0, 185)
+aimbotKeyFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+aimbotKeyFrame.BackgroundTransparency = 0.5
+aimbotKeyFrame.BorderSizePixel = 0
+aimbotKeyFrame.Parent = panel3
+
+local aimbotKeyCorner = Instance.new("UICorner")
+aimbotKeyCorner.CornerRadius = UDim.new(0, 8)
+aimbotKeyCorner.Parent = aimbotKeyFrame
+
+local aimbotKeyLabel = Instance.new("TextLabel")
+aimbotKeyLabel.Size = UDim2.new(0.6, 0, 1, 0)
+aimbotKeyLabel.Position = UDim2.new(0, 15, 0, 0)
+aimbotKeyLabel.BackgroundTransparency = 1
+aimbotKeyLabel.Text = "🎯 Переключить аимбот:"
+aimbotKeyLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
+aimbotKeyLabel.TextSize = 14
+aimbotKeyLabel.Font = Enum.Font.Gotham
+aimbotKeyLabel.TextXAlignment = Enum.TextXAlignment.Left
+aimbotKeyLabel.Parent = aimbotKeyFrame
+
+local aimbotKeyButton = Instance.new("TextButton")
+aimbotKeyButton.Size = UDim2.new(0, 100, 0, 35)
+aimbotKeyButton.Position = UDim2.new(0.7, 0, 0.5, -17.5)
+aimbotKeyButton.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+aimbotKeyButton.Text = aimbotKeybind
+aimbotKeyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+aimbotKeyButton.TextSize = 18
+aimbotKeyButton.Font = Enum.Font.GothamBold
+aimbotKeyButton.BorderSizePixel = 0
+aimbotKeyButton.Parent = aimbotKeyFrame
+
+local aimbotKeyCorner2 = Instance.new("UICorner")
+aimbotKeyCorner2.CornerRadius = UDim.new(0, 6)
+aimbotKeyCorner2.Parent = aimbotKeyButton
+
+-- Информация
 local infoFrame = Instance.new("Frame")
-infoFrame.Size = UDim2.new(0, 400, 0, 100)
-infoFrame.Position = UDim2.new(0.5, -200, 0, 230)
+infoFrame.Size = UDim2.new(0, 400, 0, 80)
+infoFrame.Position = UDim2.new(0.5, -200, 0, 250)
 infoFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
 infoFrame.BackgroundTransparency = 0.5
 infoFrame.BorderSizePixel = 0
@@ -505,29 +571,354 @@ local infoText = Instance.new("TextLabel")
 infoText.Size = UDim2.new(1, -20, 1, 0)
 infoText.Position = UDim2.new(0, 10, 0, 0)
 infoText.BackgroundTransparency = 1
-infoText.Text = "💡 Информация:\n• Нажмите на кнопку с клавишей, чтобы изменить её\n• Затем нажмите любую клавишу на клавиатуре\n• Кейбинды работают даже когда меню скрыто\n• T - телепорт, H - скрыть меню"
+infoText.Text = "💡 Информация:\n• Нажмите на кнопку с клавишей, чтобы изменить её\n• Затем нажмите любую клавишу на клавиатуре\n• Кейбинды работают даже когда меню скрыто"
 infoText.TextColor3 = Color3.fromRGB(150, 150, 180)
-infoText.TextSize = 12
+infoText.TextSize = 11
 infoText.Font = Enum.Font.Gotham
 infoText.TextXAlignment = Enum.TextXAlignment.Left
 infoText.TextYAlignment = Enum.TextYAlignment.Top
 infoText.Parent = infoFrame
+
+-- ===== ПАНЕЛЬ 4 (АИМБОТ) =====
+local aimbotLabel = Instance.new("TextLabel")
+aimbotLabel.Size = UDim2.new(1, -40, 0, 40)
+aimbotLabel.Position = UDim2.new(0, 20, 0, 15)
+aimbotLabel.BackgroundTransparency = 1
+aimbotLabel.Text = "🎯 Настройки Аимбота (переключаемый)"
+aimbotLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
+aimbotLabel.TextSize = 16
+aimbotLabel.Font = Enum.Font.GothamBold
+aimbotLabel.TextXAlignment = Enum.TextXAlignment.Center
+aimbotLabel.Parent = panel4
+
+-- Статус аимбота (крупно)
+local aimbotStatusFrame = Instance.new("Frame")
+aimbotStatusFrame.Size = UDim2.new(0, 300, 0, 50)
+aimbotStatusFrame.Position = UDim2.new(0.5, -150, 0, 65)
+aimbotStatusFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+aimbotStatusFrame.BackgroundTransparency = 0.5
+aimbotStatusFrame.BorderSizePixel = 0
+aimbotStatusFrame.Parent = panel4
+
+local aimbotStatusCorner = Instance.new("UICorner")
+aimbotStatusCorner.CornerRadius = UDim.new(0, 8)
+aimbotStatusCorner.Parent = aimbotStatusFrame
+
+local aimbotStatusText = Instance.new("TextLabel")
+aimbotStatusText.Size = UDim2.new(1, 0, 1, 0)
+aimbotStatusText.BackgroundTransparency = 1
+aimbotStatusText.Text = "⚪ АИМБОТ ВЫКЛЮЧЕН"
+aimbotStatusText.TextColor3 = Color3.fromRGB(200, 200, 200)
+aimbotStatusText.TextSize = 18
+aimbotStatusText.Font = Enum.Font.GothamBold
+aimbotStatusText.Parent = aimbotStatusFrame
+
+-- Кнопка переключения аимбота
+local aimbotToggleButton = Instance.new("TextButton")
+aimbotToggleButton.Size = UDim2.new(0, 200, 0, 45)
+aimbotToggleButton.Position = UDim2.new(0.5, -100, 0, 130)
+aimbotToggleButton.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+aimbotToggleButton.Text = "🔘 ВКЛЮЧИТЬ"
+aimbotToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+aimbotToggleButton.TextSize = 16
+aimbotToggleButton.Font = Enum.Font.GothamBold
+aimbotToggleButton.BorderSizePixel = 0
+aimbotToggleButton.Parent = panel4
+
+local aimbotToggleCorner = Instance.new("UICorner")
+aimbotToggleCorner.CornerRadius = UDim.new(0, 8)
+aimbotToggleCorner.Parent = aimbotToggleButton
+
+-- Настройка плавности
+local smoothnessFrame = Instance.new("Frame")
+smoothnessFrame.Size = UDim2.new(0, 400, 0, 70)
+smoothnessFrame.Position = UDim2.new(0.5, -200, 0, 195)
+smoothnessFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+smoothnessFrame.BackgroundTransparency = 0.5
+smoothnessFrame.BorderSizePixel = 0
+smoothnessFrame.Parent = panel4
+
+local smoothnessCorner = Instance.new("UICorner")
+smoothnessCorner.CornerRadius = UDim.new(0, 8)
+smoothnessCorner.Parent = smoothnessFrame
+
+local smoothnessLabel = Instance.new("TextLabel")
+smoothnessLabel.Size = UDim2.new(1, -20, 0, 25)
+smoothnessLabel.Position = UDim2.new(0, 15, 0, 5)
+smoothnessLabel.BackgroundTransparency = 1
+smoothnessLabel.Text = "🎯 Плавность прицеливания:"
+smoothnessLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
+smoothnessLabel.TextSize = 13
+smoothnessLabel.Font = Enum.Font.Gotham
+smoothnessLabel.TextXAlignment = Enum.TextXAlignment.Left
+smoothnessLabel.Parent = smoothnessFrame
+
+local smoothnessSliderFrame = Instance.new("Frame")
+smoothnessSliderFrame.Size = UDim2.new(0, 300, 0, 4)
+smoothnessSliderFrame.Position = UDim2.new(0, 15, 0, 40)
+smoothnessSliderFrame.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+smoothnessSliderFrame.BorderSizePixel = 0
+smoothnessSliderFrame.Parent = smoothnessFrame
+
+local smoothnessSliderCorner = Instance.new("UICorner")
+smoothnessSliderCorner.CornerRadius = UDim.new(0, 2)
+smoothnessSliderCorner.Parent = smoothnessSliderFrame
+
+local smoothnessSliderFill = Instance.new("Frame")
+smoothnessSliderFill.Size = UDim2.new(0.5, 0, 1, 0)
+smoothnessSliderFill.BackgroundColor3 = Color3.fromRGB(255, 100, 0)
+smoothnessSliderFill.BorderSizePixel = 0
+smoothnessSliderFill.Parent = smoothnessSliderFrame
+
+local smoothnessSliderButton = Instance.new("TextButton")
+smoothnessSliderButton.Size = UDim2.new(0, 20, 0, 20)
+smoothnessSliderButton.Position = UDim2.new(0.5, -10, 0.5, -10)
+smoothnessSliderButton.BackgroundColor3 = Color3.fromRGB(255, 100, 0)
+smoothnessSliderButton.Text = ""
+smoothnessSliderButton.BorderSizePixel = 0
+smoothnessSliderButton.Parent = smoothnessSliderFrame
+
+local smoothnessButtonCorner = Instance.new("UICorner")
+smoothnessButtonCorner.CornerRadius = UDim.new(1, 0)
+smoothnessButtonCorner.Parent = smoothnessSliderButton
+
+local smoothnessValueLabel = Instance.new("TextLabel")
+smoothnessValueLabel.Size = UDim2.new(0, 60, 0, 20)
+smoothnessValueLabel.Position = UDim2.new(0.8, 0, 0.5, -10)
+smoothnessValueLabel.BackgroundTransparency = 1
+smoothnessValueLabel.Text = "0.20"
+smoothnessValueLabel.TextColor3 = Color3.fromRGB(255, 200, 100)
+smoothnessValueLabel.TextSize = 12
+smoothnessValueLabel.Font = Enum.Font.GothamBold
+smoothnessValueLabel.Parent = smoothnessFrame
+
+-- Настройка спрея (разброса)
+local sprayFrame = Instance.new("Frame")
+sprayFrame.Size = UDim2.new(0, 400, 0, 70)
+sprayFrame.Position = UDim2.new(0.5, -200, 0, 280)
+sprayFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+sprayFrame.BackgroundTransparency = 0.5
+sprayFrame.BorderSizePixel = 0
+sprayFrame.Parent = panel4
+
+local sprayCorner = Instance.new("UICorner")
+sprayCorner.CornerRadius = UDim.new(0, 8)
+sprayCorner.Parent = sprayFrame
+
+local sprayLabel = Instance.new("TextLabel")
+sprayLabel.Size = UDim2.new(1, -20, 0, 25)
+sprayLabel.Position = UDim2.new(0, 15, 0, 5)
+sprayLabel.BackgroundTransparency = 1
+sprayLabel.Text = "🎲 Спрей (разброс) при прицеливании:"
+sprayLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
+sprayLabel.TextSize = 13
+sprayLabel.Font = Enum.Font.Gotham
+sprayLabel.TextXAlignment = Enum.TextXAlignment.Left
+sprayLabel.Parent = sprayFrame
+
+local spraySliderFrame = Instance.new("Frame")
+spraySliderFrame.Size = UDim2.new(0, 300, 0, 4)
+spraySliderFrame.Position = UDim2.new(0, 15, 0, 40)
+spraySliderFrame.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+spraySliderFrame.BorderSizePixel = 0
+spraySliderFrame.Parent = sprayFrame
+
+local spraySliderCorner = Instance.new("UICorner")
+spraySliderCorner.CornerRadius = UDim.new(0, 2)
+spraySliderCorner.Parent = spraySliderFrame
+
+local spraySliderFill = Instance.new("Frame")
+spraySliderFill.Size = UDim2.new(0.5, 0, 1, 0)
+spraySliderFill.BackgroundColor3 = Color3.fromRGB(100, 255, 100)
+spraySliderFill.BorderSizePixel = 0
+spraySliderFill.Parent = spraySliderFrame
+
+local spraySliderButton = Instance.new("TextButton")
+spraySliderButton.Size = UDim2.new(0, 20, 0, 20)
+spraySliderButton.Position = UDim2.new(0.5, -10, 0.5, -10)
+spraySliderButton.BackgroundColor3 = Color3.fromRGB(100, 255, 100)
+spraySliderButton.Text = ""
+spraySliderButton.BorderSizePixel = 0
+spraySliderButton.Parent = spraySliderFrame
+
+local sprayButtonCorner = Instance.new("UICorner")
+sprayButtonCorner.CornerRadius = UDim.new(1, 0)
+sprayButtonCorner.Parent = spraySliderButton
+
+local sprayValueLabel = Instance.new("TextLabel")
+sprayValueLabel.Size = UDim2.new(0, 60, 0, 20)
+sprayValueLabel.Position = UDim2.new(0.8, 0, 0.5, -10)
+sprayValueLabel.BackgroundTransparency = 1
+sprayValueLabel.Text = "0.05"
+sprayValueLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+sprayValueLabel.TextSize = 12
+sprayValueLabel.Font = Enum.Font.GothamBold
+sprayValueLabel.Parent = sprayFrame
+
+-- Кнопка включения/выключения спрея
+local sprayToggleButton = Instance.new("TextButton")
+sprayToggleButton.Size = UDim2.new(0, 150, 0, 30)
+sprayToggleButton.Position = UDim2.new(0.5, -75, 0, 365)
+sprayToggleButton.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
+sprayToggleButton.Text = "🔘 СПРЕЙ ВКЛ"
+sprayToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+sprayToggleButton.TextSize = 12
+sprayToggleButton.Font = Enum.Font.GothamBold
+sprayToggleButton.BorderSizePixel = 0
+sprayToggleButton.Parent = panel4
+
+local sprayToggleCorner = Instance.new("UICorner")
+sprayToggleCorner.CornerRadius = UDim.new(0, 6)
+sprayToggleCorner.Parent = sprayToggleButton
+
+-- Информация об аимботе
+local aimbotInfoFrame = Instance.new("Frame")
+aimbotInfoFrame.Size = UDim2.new(0, 400, 0, 80)
+aimbotInfoFrame.Position = UDim2.new(0.5, -200, 0, 410)
+aimbotInfoFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+aimbotInfoFrame.BackgroundTransparency = 0.5
+aimbotInfoFrame.BorderSizePixel = 0
+aimbotInfoFrame.Parent = panel4
+
+local aimbotInfoCorner = Instance.new("UICorner")
+aimbotInfoCorner.CornerRadius = UDim.new(0, 8)
+aimbotInfoCorner.Parent = aimbotInfoFrame
+
+local aimbotInfoText = Instance.new("TextLabel")
+aimbotInfoText.Size = UDim2.new(1, -20, 1, 0)
+aimbotInfoText.Position = UDim2.new(0, 10, 0, 0)
+aimbotInfoText.BackgroundTransparency = 1
+aimbotInfoText.Text = "🎯 Как работает аимбот:\n• Нажмите C (или вашу клавишу) для включения/выключения\n• Когда аимбот ВКЛ, он будет постоянно следить за ближайшим игроком\n• Спрей добавляет случайный разброс, чтобы не палиться"
+aimbotInfoText.TextColor3 = Color3.fromRGB(150, 150, 180)
+aimbotInfoText.TextSize = 11
+aimbotInfoText.Font = Enum.Font.Gotham
+aimbotInfoText.TextXAlignment = Enum.TextXAlignment.Left
+aimbotInfoText.TextYAlignment = Enum.TextYAlignment.Top
+aimbotInfoText.Parent = aimbotInfoFrame
 
 -- Переменные
 local teleportHeight = 10000
 local teleportCount = 0
 local isDraggingSlider = false
 local isDraggingVelocitySlider = false
+local isDraggingSmoothnessSlider = false
+local isDraggingSpraySlider = false
 local selectedMethod = "Velocity"
 local currentCharacter = nil
 local isAlive = true
 local velocityMultiplier = 1.0
+local aimbotSmoothness = 0.2
+local sprayAmount = 0.05
+local sprayEnabled = true
 
--- Состояния для кейбиндов
-local waitingForTeleportKey = false
-local waitingForHideKey = false
+-- Функция для нахождения ближайшего игрока
+local function getClosestPlayer()
+    local closestPlayer = nil
+    local closestDistance = math.huge
+    
+    if not currentCharacter or not currentCharacter:FindFirstChild("HumanoidRootPart") then
+        return nil
+    end
+    
+    local myPosition = currentCharacter.HumanoidRootPart.Position
+    
+    for _, otherPlayer in ipairs(Players:GetPlayers()) do
+        if otherPlayer ~= player then
+            local otherChar = otherPlayer.Character
+            if otherChar and otherChar:FindFirstChild("HumanoidRootPart") and otherChar:FindFirstChild("Humanoid") and otherChar.Humanoid.Health > 0 then
+                local otherPosition = otherChar.HumanoidRootPart.Position
+                local distance = (myPosition - otherPosition).Magnitude
+                
+                if distance < closestDistance and distance < 500 then
+                    closestDistance = distance
+                    closestPlayer = otherPlayer
+                end
+            end
+        end
+    end
+    
+    return closestPlayer, closestDistance
+end
 
--- Функции ползунка высоты
+-- Функция для применения спрея (разброса)
+local function applySpray(targetPosition)
+    if not sprayEnabled then
+        return targetPosition
+    end
+    
+    -- Случайное смещение в пределах sprayAmount (в студнях)
+    local offsetX = (math.random() - 0.5) * sprayAmount * 10
+    local offsetY = (math.random() - 0.5) * sprayAmount * 8
+    local offsetZ = (math.random() - 0.5) * sprayAmount * 10
+    
+    return targetPosition + Vector3.new(offsetX, offsetY, offsetZ)
+end
+
+-- Функция аимбота (постоянное слежение)
+local aimbotConnection = nil
+local function startAimbot()
+    if aimbotConnection then
+        aimbotConnection:Disconnect()
+        aimbotConnection = nil
+    end
+    
+    aimbotConnection = RunService.RenderStepped:Connect(function()
+        if aimbotEnabled and isAlive and currentCharacter then
+            local targetPlayer, distance = getClosestPlayer()
+            
+            if targetPlayer then
+                local targetChar = targetPlayer.Character
+                if targetChar and targetChar:FindFirstChild("HumanoidRootPart") then
+                    local targetPos = targetChar.HumanoidRootPart.Position + Vector3.new(0, 1.5, 0)
+                    
+                    -- Применяем спрей
+                    local sprayedPos = applySpray(targetPos)
+                    
+                    -- Плавное наведение
+                    local currentCFrame = camera.CFrame
+                    local targetCFrame = CFrame.new(camera.CFrame.Position, sprayedPos)
+                    
+                    local newCFrame = currentCFrame:Lerp(targetCFrame, aimbotSmoothness)
+                    camera.CFrame = newCFrame
+                end
+            end
+        end
+    end)
+end
+
+-- Функция переключения аимбота
+local function toggleAimbot()
+    aimbotEnabled = not aimbotEnabled
+    
+    if aimbotEnabled then
+        aimbotStatusText.Text = "🔴 АИМБОТ ВКЛЮЧЕН"
+        aimbotStatusText.TextColor3 = Color3.fromRGB(255, 100, 100)
+        aimbotToggleButton.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
+        aimbotToggleButton.Text = "🔴 ВЫКЛЮЧИТЬ"
+        startAimbot()
+        statusLabel.Text = "🎯 Аимбот ВКЛЮЧЁН (следит за врагами)"
+        statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+    else
+        aimbotStatusText.Text = "⚪ АИМБОТ ВЫКЛЮЧЕН"
+        aimbotStatusText.TextColor3 = Color3.fromRGB(200, 200, 200)
+        aimbotToggleButton.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+        aimbotToggleButton.Text = "🟢 ВКЛЮЧИТЬ"
+        if aimbotConnection then
+            aimbotConnection:Disconnect()
+            aimbotConnection = nil
+        end
+        statusLabel.Text = "❌ Аимбот ВЫКЛЮЧЁН"
+        statusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+    end
+    
+    task.wait(1.5)
+    if isAlive then
+        statusLabel.Text = "✅ Персонаж жив"
+        statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+    end
+end
+
+-- Функции ползунков
 local function updateSliderValue(value)
     local minVal = 1
     local maxVal = 1000000
@@ -547,7 +938,6 @@ local function getValueFromSliderPosition(inputPosition)
     return math.floor(minVal + (maxVal - minVal) * percent)
 end
 
--- Функции ползунка скорости
 local function updateVelocitySlider(value)
     local minVal = 0.1
     local maxVal = 5.0
@@ -564,6 +954,46 @@ local function getValueFromVelocitySliderPosition(inputPosition)
     local percent = math.clamp(clickX / sliderWidth, 0, 1)
     local minVal = 0.1
     local maxVal = 5.0
+    return minVal + (maxVal - minVal) * percent
+end
+
+local function updateSmoothnessSlider(value)
+    local minVal = 0.05
+    local maxVal = 0.5
+    local percent = (value - minVal) / (maxVal - minVal)
+    percent = math.clamp(percent, 0, 1)
+    smoothnessSliderFill.Size = UDim2.new(percent, 0, 1, 0)
+    smoothnessSliderButton.Position = UDim2.new(percent, -10, 0.5, -10)
+    smoothnessValueLabel.Text = string.format("%.2f", value)
+end
+
+local function getValueFromSmoothnessSliderPosition(inputPosition)
+    local sliderAbsPos = smoothnessSliderFrame.AbsolutePosition
+    local sliderWidth = smoothnessSliderFrame.AbsoluteSize.X
+    local clickX = inputPosition.X - sliderAbsPos.X
+    local percent = math.clamp(clickX / sliderWidth, 0, 1)
+    local minVal = 0.05
+    local maxVal = 0.5
+    return minVal + (maxVal - minVal) * percent
+end
+
+local function updateSpraySlider(value)
+    local minVal = 0
+    local maxVal = 0.3
+    local percent = (value - minVal) / (maxVal - minVal)
+    percent = math.clamp(percent, 0, 1)
+    spraySliderFill.Size = UDim2.new(percent, 0, 1, 0)
+    spraySliderButton.Position = UDim2.new(percent, -10, 0.5, -10)
+    sprayValueLabel.Text = string.format("%.2f", value)
+end
+
+local function getValueFromSpraySliderPosition(inputPosition)
+    local sliderAbsPos = spraySliderFrame.AbsolutePosition
+    local sliderWidth = spraySliderFrame.AbsoluteSize.X
+    local clickX = inputPosition.X - sliderAbsPos.X
+    local percent = math.clamp(clickX / sliderWidth, 0, 1)
+    local minVal = 0
+    local maxVal = 0.3
     return minVal + (maxVal - minVal) * percent
 end
 
@@ -587,10 +1017,25 @@ velocitySliderButton.InputBegan:Connect(function(input)
         updateVelocitySlider(velocityMultiplier)
         velocityInputBox.Text = string.format("%.1f", velocityMultiplier)
         currentSpeedLabel.Text = "Текущий множитель: " .. string.format("%.1f", velocityMultiplier) .. "x"
-        velocityValueLabel.Text = string.format("Скорость: x%.1f (%s)", velocityMultiplier, 
-            velocityMultiplier == 1 and "обычная" or 
-            velocityMultiplier < 1 and "медленнее" or 
-            "быстрее")
+        velocityValueLabel.Text = string.format("Скорость: x%.1f", velocityMultiplier)
+    end
+end)
+
+smoothnessSliderButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isDraggingSmoothnessSlider = true
+        local newValue = getValueFromSmoothnessSliderPosition(input.Position)
+        aimbotSmoothness = math.clamp(newValue, 0.05, 0.5)
+        updateSmoothnessSlider(aimbotSmoothness)
+    end
+end)
+
+spraySliderButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isDraggingSpraySlider = true
+        local newValue = getValueFromSpraySliderPosition(input.Position)
+        sprayAmount = math.clamp(newValue, 0, 0.3)
+        updateSpraySlider(sprayAmount)
     end
 end)
 
@@ -607,10 +1052,15 @@ UserInputService.InputChanged:Connect(function(input)
         updateVelocitySlider(velocityMultiplier)
         velocityInputBox.Text = string.format("%.1f", velocityMultiplier)
         currentSpeedLabel.Text = "Текущий множитель: " .. string.format("%.1f", velocityMultiplier) .. "x"
-        velocityValueLabel.Text = string.format("Скорость: x%.1f (%s)", velocityMultiplier, 
-            velocityMultiplier == 1 and "обычная" or 
-            velocityMultiplier < 1 and "медленнее" or 
-            "быстрее")
+        velocityValueLabel.Text = string.format("Скорость: x%.1f", velocityMultiplier)
+    elseif isDraggingSmoothnessSlider and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local newValue = getValueFromSmoothnessSliderPosition(input.Position)
+        aimbotSmoothness = math.clamp(newValue, 0.05, 0.5)
+        updateSmoothnessSlider(aimbotSmoothness)
+    elseif isDraggingSpraySlider and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local newValue = getValueFromSpraySliderPosition(input.Position)
+        sprayAmount = math.clamp(newValue, 0, 0.3)
+        updateSpraySlider(sprayAmount)
     end
 end)
 
@@ -618,6 +1068,8 @@ UserInputService.InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
         isDraggingSlider = false
         isDraggingVelocitySlider = false
+        isDraggingSmoothnessSlider = false
+        isDraggingSpraySlider = false
     end
 end)
 
@@ -638,10 +1090,23 @@ velocitySliderFrame.InputBegan:Connect(function(input)
         updateVelocitySlider(velocityMultiplier)
         velocityInputBox.Text = string.format("%.1f", velocityMultiplier)
         currentSpeedLabel.Text = "Текущий множитель: " .. string.format("%.1f", velocityMultiplier) .. "x"
-        velocityValueLabel.Text = string.format("Скорость: x%.1f (%s)", velocityMultiplier, 
-            velocityMultiplier == 1 and "обычная" or 
-            velocityMultiplier < 1 and "медленнее" or 
-            "быстрее")
+        velocityValueLabel.Text = string.format("Скорость: x%.1f", velocityMultiplier)
+    end
+end)
+
+smoothnessSliderFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        local newValue = getValueFromSmoothnessSliderPosition(input.Position)
+        aimbotSmoothness = math.clamp(newValue, 0.05, 0.5)
+        updateSmoothnessSlider(aimbotSmoothness)
+    end
+end)
+
+spraySliderFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        local newValue = getValueFromSpraySliderPosition(input.Position)
+        sprayAmount = math.clamp(newValue, 0, 0.3)
+        updateSpraySlider(sprayAmount)
     end
 end)
 
@@ -667,10 +1132,7 @@ local function applyVelocityInput()
         updateVelocitySlider(velocityMultiplier)
         velocityInputBox.Text = string.format("%.1f", velocityMultiplier)
         currentSpeedLabel.Text = "Текущий множитель: " .. string.format("%.1f", velocityMultiplier) .. "x"
-        velocityValueLabel.Text = string.format("Скорость: x%.1f (%s)", velocityMultiplier, 
-            velocityMultiplier == 1 and "обычная" or 
-            velocityMultiplier < 1 and "медленнее" or 
-            "быстрее")
+        velocityValueLabel.Text = string.format("Скорость: x%.1f", velocityMultiplier)
     else
         velocityInputBox.Text = string.format("%.1f", velocityMultiplier)
     end
@@ -686,6 +1148,28 @@ velocityInputBox.FocusLost:Connect(function(enterPressed)
     if enterPressed then applyVelocityInput() end
 end)
 
+-- Переключение спрея
+local function toggleSpray()
+    sprayEnabled = not sprayEnabled
+    if sprayEnabled then
+        sprayToggleButton.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
+        sprayToggleButton.Text = "🔘 СПРЕЙ ВКЛ"
+        statusLabel.Text = "🎲 Спрей включён"
+    else
+        sprayToggleButton.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
+        sprayToggleButton.Text = "❌ СПРЕЙ ВЫКЛ"
+        statusLabel.Text = "🎲 Спрей выключен"
+    end
+    statusLabel.TextColor3 = Color3.fromRGB(200, 200, 100)
+    task.wait(1.5)
+    if isAlive then
+        statusLabel.Text = "✅ Персонаж жив"
+        statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+    end
+end
+
+sprayToggleButton.MouseButton1Click:Connect(toggleSpray)
+
 -- Форматирование чисел
 local function formatNumber(num)
     if num >= 1000000 then
@@ -698,7 +1182,6 @@ local function formatNumber(num)
 end
 
 -- ===== МЕТОДЫ ТЕЛЕПОРТАЦИИ =====
-
 local function teleportViaVelocity(height)
     if not currentCharacter then return false end
     
@@ -842,24 +1325,20 @@ local function setupKeybinds()
     UserInputService.InputBegan:Connect(function(input, gameProcessed)
         if gameProcessed then return end
         
-        -- Проверка на телепорт
+        -- Телепорт
         if input.KeyCode == Enum.KeyCode[teleportKeybind] then
             teleportUp()
         end
         
-        -- Проверка на скрытие
+        -- Скрытие меню
         if input.KeyCode == Enum.KeyCode[hideKeybind] then
             isMenuVisible = not isMenuVisible
             screenGui.Enabled = isMenuVisible
-            
-            -- Визуальный эффект при скрытии/показе
-            if isMenuVisible then
-                statusLabel.Text = "✅ Меню показано (нажми " .. hideKeybind .. ")"
-                task.wait(2)
-                if isAlive then
-                    statusLabel.Text = "✅ Персонаж жив"
-                end
-            end
+        end
+        
+        -- Переключение аимбота
+        if input.KeyCode == Enum.KeyCode[aimbotKeybind] then
+            toggleAimbot()
         end
     end)
 end
@@ -881,9 +1360,6 @@ local function setupKeybindButtons()
                     teleportKeyButton.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
                     waitingForTeleportKey = false
                     connection:Disconnect()
-                    
-                    -- Обновляем информацию
-                    infoText.Text = "💡 Информация:\n• Нажмите на кнопку с клавишей, чтобы изменить её\n• Затем нажмите любую клавишу на клавиатуре\n• Кейбинды работают даже когда меню скрыто\n• " .. teleportKeybind .. " - телепорт, " .. hideKeybind .. " - скрыть меню"
                 end
             end
         end)
@@ -904,9 +1380,26 @@ local function setupKeybindButtons()
                     hideKeyButton.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
                     waitingForHideKey = false
                     connection:Disconnect()
-                    
-                    -- Обновляем информацию
-                    infoText.Text = "💡 Информация:\n• Нажмите на кнопку с клавишей, чтобы изменить её\n• Затем нажмите любую клавишу на клавиатуре\n• Кейбинды работают даже когда меню скрыто\n• " .. teleportKeybind .. " - телепорт, " .. hideKeybind .. " - скрыть меню"
+                end
+            end
+        end)
+    end)
+    
+    aimbotKeyButton.MouseButton1Click:Connect(function()
+        waitingForAimbotKey = true
+        aimbotKeyButton.Text = "..."
+        aimbotKeyButton.BackgroundColor3 = Color3.fromRGB(200, 100, 0)
+        
+        local connection
+        connection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+            if waitingForAimbotKey and not gameProcessed then
+                local key = input.KeyCode.Name
+                if key ~= "Unknown" then
+                    aimbotKeybind = key
+                    aimbotKeyButton.Text = key
+                    aimbotKeyButton.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+                    waitingForAimbotKey = false
+                    connection:Disconnect()
                 end
             end
         end)
@@ -918,36 +1411,44 @@ tab1.MouseButton1Click:Connect(function()
     panel1.Visible = true
     panel2.Visible = false
     panel3.Visible = false
+    panel4.Visible = false
     tab1.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
     tab2.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
     tab3.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
-    tab1.TextColor3 = Color3.fromRGB(255, 255, 255)
-    tab2.TextColor3 = Color3.fromRGB(200, 200, 220)
-    tab3.TextColor3 = Color3.fromRGB(200, 200, 220)
+    tab4.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
 end)
 
 tab2.MouseButton1Click:Connect(function()
     panel1.Visible = false
     panel2.Visible = true
     panel3.Visible = false
+    panel4.Visible = false
     tab1.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
     tab2.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
     tab3.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
-    tab1.TextColor3 = Color3.fromRGB(200, 200, 220)
-    tab2.TextColor3 = Color3.fromRGB(255, 255, 255)
-    tab3.TextColor3 = Color3.fromRGB(200, 200, 220)
+    tab4.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
 end)
 
 tab3.MouseButton1Click:Connect(function()
     panel1.Visible = false
     panel2.Visible = false
     panel3.Visible = true
+    panel4.Visible = false
     tab1.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
     tab2.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
     tab3.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
-    tab1.TextColor3 = Color3.fromRGB(200, 200, 220)
-    tab2.TextColor3 = Color3.fromRGB(200, 200, 220)
-    tab3.TextColor3 = Color3.fromRGB(255, 255, 255)
+    tab4.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
+end)
+
+tab4.MouseButton1Click:Connect(function()
+    panel1.Visible = false
+    panel2.Visible = false
+    panel3.Visible = false
+    panel4.Visible = true
+    tab1.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
+    tab2.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
+    tab3.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
+    tab4.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
 end)
 
 -- Отслеживание перерождения
@@ -963,6 +1464,11 @@ local function onCharacterAdded(newChar)
         isAlive = false
         statusLabel.Text = "💀 Вы умерли! Ожидание возрождения..."
         statusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+        
+        -- Если аимбот был включён, выключаем его при смерти
+        if aimbotEnabled then
+            toggleAimbot()
+        end
     end)
     
     humanoid:GetPropertyChangedSignal("Health"):Connect(function()
@@ -1003,15 +1509,18 @@ teleportButton.MouseButton1Click:Connect(teleportUp)
 -- Анимации кнопок
 teleportButton.MouseEnter:Connect(function()
     teleportButton.BackgroundColor3 = Color3.fromRGB(50, 170, 255)
-    teleportButton.Size = UDim2.new(0, 290, 0, 75)
+    teleportButton.Size = UDim2.new(0, 290, 0, 65)
 end)
 
 teleportButton.MouseLeave:Connect(function()
     teleportButton.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
-    teleportButton.Size = UDim2.new(0, 280, 0, 70)
+    teleportButton.Size = UDim2.new(0, 280, 0, 60)
 end)
 
 closeButton.MouseButton1Click:Connect(function()
+    if aimbotConnection then
+        aimbotConnection:Disconnect()
+    end
     screenGui:Destroy()
 end)
 
@@ -1075,10 +1584,7 @@ for i, value in ipairs(speedPresets) do
             updateVelocitySlider(velocityMultiplier)
             velocityInputBox.Text = string.format("%.1f", velocityMultiplier)
             currentSpeedLabel.Text = "Текущий множитель: " .. string.format("%.1f", velocityMultiplier) .. "x"
-            velocityValueLabel.Text = string.format("Скорость: x%.1f (%s)", velocityMultiplier, 
-                velocityMultiplier == 1 and "обычная" or 
-                velocityMultiplier < 1 and "медленнее" or 
-                "быстрее")
+            velocityValueLabel.Text = string.format("Скорость: x%.1f", velocityMultiplier)
         end
     end)
     
@@ -1135,14 +1641,14 @@ minimizeButton.MouseButton1Click:Connect(function()
     minimized = not minimized
     if minimized then
         local minimizeTween = TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
-            Size = UDim2.new(0, 450, 0, 45)
+            Size = UDim2.new(0, 480, 0, 45)
         })
         minimizeTween:Play()
         contentFrame.Visible = false
         minimizeButton.Text = "□"
     else
         local maximizeTween = TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
-            Size = UDim2.new(0, 450, 0, 550)
+            Size = UDim2.new(0, 480, 0, 650)
         })
         maximizeTween:Play()
         contentFrame.Visible = true
@@ -1153,8 +1659,13 @@ end)
 -- Инициализация
 updateSliderValue(teleportHeight)
 updateVelocitySlider(velocityMultiplier)
+updateSmoothnessSlider(aimbotSmoothness)
+updateSpraySlider(sprayAmount)
 setupKeybinds()
 setupKeybindButtons()
+
+-- Кнопка переключения аимбота
+aimbotToggleButton.MouseButton1Click:Connect(toggleAimbot)
 
 -- Анимация появления
 mainFrame.BackgroundTransparency = 1
@@ -1162,3 +1673,8 @@ local appearTween = TweenService:Create(mainFrame, TweenInfo.new(0.5, Enum.Easin
     BackgroundTransparency = 0.05
 })
 appearTween:Play()
+
+-- Переменные для ожидания кейбиндов
+local waitingForTeleportKey = false
+local waitingForHideKey = false
+local waitingForAimbotKey = false
