@@ -2,158 +2,125 @@ local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
-local TweenService = game:GetService("TweenService")
 
 local distance = 500
 local isShooting = false
 local currentArrow = "Arrow"
 local toggleKey = Enum.KeyCode.T
 
--- ===== ПЕРЕМЕННЫЕ ДЛЯ ЛУКА =====
-local bow = nil
+-- Переменные для лука
 local shoot = nil
-local character = player.Character
 
--- ===== СОЗДАНИЕ GUI (СРАЗУ, БЕЗ ОЖИДАНИЯ ЛУКА) =====
+-- Функция получения лука (не блокирует создание GUI)
+local function getShootFunction()
+    local character = player.Character
+    if not character then return nil end
+    local bow = character:FindFirstChild("Prism Bow")
+    if not bow then return nil end
+    return bow:FindFirstChild("Shoot")
+end
+
+-- Функция выстрела
+local function shootArrow()
+    if not isShooting then return end
+    
+    -- Проверяем лук каждый раз
+    if not shoot then
+        shoot = getShootFunction()
+        if not shoot then return end
+    end
+    
+    local character = player.Character
+    if not character then return end
+    
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    if not humanoidRootPart then return end
+    
+    local targetPosition = humanoidRootPart.Position + humanoidRootPart.CFrame.LookVector * distance
+    
+    pcall(function()
+        shoot:InvokeServer(targetPosition, currentArrow, true, 1)
+    end)
+end
+
+-- ===== СОЗДАНИЕ GUI (СРАЗУ!) =====
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "ArrowShooterGUI"
 screenGui.ResetOnSpawn = false
-screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 screenGui.Parent = player:WaitForChild("PlayerGui")
 
--- Главное окно
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 340, 0, 480)
-mainFrame.Position = UDim2.new(0.5, -170, 0.5, -240)
-mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+mainFrame.Size = UDim2.new(0, 300, 0, 350)
+mainFrame.Position = UDim2.new(0.5, -150, 0.5, -175)
+mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
 mainFrame.BackgroundTransparency = 0.1
 mainFrame.BorderSizePixel = 0
-mainFrame.ClipsDescendants = true
 mainFrame.Parent = screenGui
 
--- Скругление углов
 local corners = Instance.new("UICorner")
 corners.CornerRadius = UDim.new(0, 10)
 corners.Parent = mainFrame
 
--- Тень
-local shadow = Instance.new("Frame")
-shadow.Size = UDim2.new(1, 10, 1, 10)
-shadow.Position = UDim2.new(0, -5, 0, -5)
-shadow.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-shadow.BackgroundTransparency = 0.7
-shadow.BorderSizePixel = 0
-shadow.Parent = mainFrame
-
-local shadowCorners = Instance.new("UICorner")
-shadowCorners.CornerRadius = UDim.new(0, 10)
-shadowCorners.Parent = shadow
-
--- Заголовок
+-- Заголовок с кнопкой закрытия
 local titleBar = Instance.new("Frame")
-titleBar.Size = UDim2.new(1, 0, 0, 45)
+titleBar.Size = UDim2.new(1, 0, 0, 40)
 titleBar.BackgroundColor3 = Color3.fromRGB(45, 55, 80)
 titleBar.BorderSizePixel = 0
 titleBar.Parent = mainFrame
 
-local titleCorners = Instance.new("UICorner")
-titleCorners.CornerRadius = UDim.new(0, 10)
-titleCorners.Parent = titleBar
+local titleText = Instance.new("TextLabel")
+titleText.Size = UDim2.new(1, -50, 1, 0)
+titleText.Position = UDim2.new(0, 15, 0, 0)
+titleText.BackgroundTransparency = 1
+titleText.Text = "🏹 Arrow Shooter"
+titleText.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleText.TextXAlignment = Enum.TextXAlignment.Left
+titleText.Font = Enum.Font.GothamBold
+titleText.TextSize = 16
+titleText.Parent = titleBar
 
-local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, -80, 1, 0)
-title.Position = UDim2.new(0, 15, 0, 0)
-title.BackgroundTransparency = 1
-title.Text = "🏹 Body Arrow Shooter"
-title.TextColor3 = Color3.fromRGB(255, 255, 255)
-title.TextXAlignment = Enum.TextXAlignment.Left
-title.Font = Enum.Font.GothamBold
-title.TextSize = 16
-title.Parent = titleBar
-
--- Кнопка свернуть
-local minimizeButton = Instance.new("TextButton")
-minimizeButton.Size = UDim2.new(0, 35, 0, 35)
-minimizeButton.Position = UDim2.new(1, -80, 0, 5)
-minimizeButton.BackgroundColor3 = Color3.fromRGB(80, 80, 100)
-minimizeButton.BorderSizePixel = 0
-minimizeButton.Text = "─"
-minimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-minimizeButton.Font = Enum.Font.GothamBold
-minimizeButton.TextSize = 20
-minimizeButton.Parent = titleBar
-
-local minimizeCorners = Instance.new("UICorner")
-minimizeCorners.CornerRadius = UDim.new(0, 5)
-minimizeCorners.Parent = minimizeButton
-
--- Кнопка закрыть
-local closeButton = Instance.new("TextButton")
-closeButton.Size = UDim2.new(0, 35, 0, 35)
-closeButton.Position = UDim2.new(1, -40, 0, 5)
-closeButton.BackgroundColor3 = Color3.fromRGB(200, 70, 70)
-closeButton.BorderSizePixel = 0
-closeButton.Text = "✕"
-closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-closeButton.Font = Enum.Font.GothamBold
-closeButton.TextSize = 18
-closeButton.Parent = titleBar
-
-local closeCorners = Instance.new("UICorner")
-closeCorners.CornerRadius = UDim.new(0, 5)
-closeCorners.Parent = closeButton
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size = UDim2.new(0, 30, 0, 30)
+closeBtn.Position = UDim2.new(1, -40, 0, 5)
+closeBtn.BackgroundColor3 = Color3.fromRGB(200, 70, 70)
+closeBtn.BorderSizePixel = 0
+closeBtn.Text = "✕"
+closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.TextSize = 18
+closeBtn.Parent = titleBar
 
 -- Контент
-local contentFrame = Instance.new("Frame")
-contentFrame.Size = UDim2.new(1, -20, 1, -60)
-contentFrame.Position = UDim2.new(0, 10, 0, 55)
-contentFrame.BackgroundTransparency = 1
-contentFrame.Parent = mainFrame
+local content = Instance.new("Frame")
+content.Size = UDim2.new(1, -20, 1, -55)
+content.Position = UDim2.new(0, 10, 0, 50)
+content.BackgroundTransparency = 1
+content.Parent = mainFrame
 
--- Статус
-local statusFrame = Instance.new("Frame")
-statusFrame.Size = UDim2.new(1, 0, 0, 40)
-statusFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
-statusFrame.BorderSizePixel = 0
-statusFrame.Parent = contentFrame
-
-local statusCorners = Instance.new("UICorner")
-statusCorners.CornerRadius = UDim.new(0, 8)
-statusCorners.Parent = statusFrame
-
-local statusIcon = Instance.new("TextLabel")
-statusIcon.Size = UDim2.new(0, 30, 1, 0)
-statusIcon.BackgroundTransparency = 1
-statusIcon.Text = "⚡"
-statusIcon.TextColor3 = Color3.fromRGB(255, 200, 100)
-statusIcon.TextSize = 20
-statusIcon.Font = Enum.Font.GothamBold
-statusIcon.Parent = statusFrame
-
+-- Статус стрельбы
 local statusText = Instance.new("TextLabel")
-statusText.Size = UDim2.new(1, -40, 1, 0)
-statusText.Position = UDim2.new(0, 35, 0, 0)
-statusText.BackgroundTransparency = 1
-statusText.Text = "Статус: ОСТАНОВЛЕН"
+statusText.Size = UDim2.new(1, 0, 0, 35)
+statusText.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+statusText.BackgroundTransparency = 0.5
+statusText.BorderSizePixel = 0
+statusText.Text = "⚡ Статус: ОСТАНОВЛЕН"
 statusText.TextColor3 = Color3.fromRGB(255, 100, 100)
-statusText.TextXAlignment = Enum.TextXAlignment.Left
 statusText.Font = Enum.Font.GothamSemibold
 statusText.TextSize = 14
-statusText.Parent = statusFrame
+statusText.Parent = content
 
 -- Статус лука
-local bowStatusText = Instance.new("TextLabel")
-bowStatusText.Size = UDim2.new(1, 0, 0, 20)
-bowStatusText.Position = UDim2.new(0, 0, 0, 42)
-bowStatusText.BackgroundTransparency = 1
-bowStatusText.Text = "🎯 Лук: НЕ НАЙДЕН"
-bowStatusText.TextColor3 = Color3.fromRGB(255, 100, 100)
-bowStatusText.TextXAlignment = Enum.TextXAlignment.Left
-bowStatusText.Font = Enum.Font.Gotham
-bowStatusText.TextSize = 11
-bowStatusText.Parent = statusFrame
+local bowStatus = Instance.new("TextLabel")
+bowStatus.Size = UDim2.new(1, 0, 0, 25)
+bowStatus.Position = UDim2.new(0, 0, 0, 40)
+bowStatus.BackgroundTransparency = 1
+bowStatus.Text = "🎯 Лук: поиск..."
+bowStatus.TextColor3 = Color3.fromRGB(255, 200, 100)
+bowStatus.Font = Enum.Font.Gotham
+bowStatus.TextSize = 12
+bowStatus.Parent = content
 
--- Выбор стрелы (текстовое поле)
+-- Поле ввода стрелы
 local arrowLabel = Instance.new("TextLabel")
 arrowLabel.Size = UDim2.new(1, 0, 0, 25)
 arrowLabel.Position = UDim2.new(0, 0, 0, 75)
@@ -163,11 +130,10 @@ arrowLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
 arrowLabel.TextXAlignment = Enum.TextXAlignment.Left
 arrowLabel.Font = Enum.Font.Gotham
 arrowLabel.TextSize = 13
-arrowLabel.Parent = contentFrame
+arrowLabel.Parent = content
 
--- Поле ввода названия стрелы
 local arrowInput = Instance.new("TextBox")
-arrowInput.Size = UDim2.new(1, 0, 0, 40)
+arrowInput.Size = UDim2.new(1, 0, 0, 35)
 arrowInput.Position = UDim2.new(0, 0, 0, 100)
 arrowInput.BackgroundColor3 = Color3.fromRGB(55, 65, 90)
 arrowInput.BorderSizePixel = 0
@@ -175,211 +141,78 @@ arrowInput.Text = currentArrow
 arrowInput.TextColor3 = Color3.fromRGB(255, 255, 255)
 arrowInput.Font = Enum.Font.Gotham
 arrowInput.TextSize = 14
-arrowInput.PlaceholderText = "Введите название стрелы..."
-arrowInput.PlaceholderColor3 = Color3.fromRGB(150, 150, 170)
-arrowInput.Parent = contentFrame
+arrowInput.Parent = content
 
-local arrowInputCorners = Instance.new("UICorner")
-arrowInputCorners.CornerRadius = UDim.new(0, 6)
-arrowInputCorners.Parent = arrowInput
+local applyBtn = Instance.new("TextButton")
+applyBtn.Size = UDim2.new(1, 0, 0, 30)
+applyBtn.Position = UDim2.new(0, 0, 0, 140)
+applyBtn.BackgroundColor3 = Color3.fromRGB(80, 140, 200)
+applyBtn.BorderSizePixel = 0
+applyBtn.Text = "Применить"
+applyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+applyBtn.Font = Enum.Font.GothamBold
+applyBtn.TextSize = 14
+applyBtn.Parent = content
 
--- Кнопка применить название стрелы
-local applyArrowButton = Instance.new("TextButton")
-applyArrowButton.Size = UDim2.new(1, 0, 0, 35)
-applyArrowButton.Position = UDim2.new(0, 0, 0, 145)
-applyArrowButton.BackgroundColor3 = Color3.fromRGB(80, 140, 200)
-applyArrowButton.BorderSizePixel = 0
-applyArrowButton.Text = "Применить стрелу"
-applyArrowButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-applyArrowButton.Font = Enum.Font.GothamBold
-applyArrowButton.TextSize = 14
-applyArrowButton.Parent = contentFrame
-
-local applyButtonCorners = Instance.new("UICorner")
-applyButtonCorners.CornerRadius = UDim.new(0, 6)
-applyButtonCorners.Parent = applyArrowButton
-
--- Настройка клавиши
-local keybindLabel = Instance.new("TextLabel")
-keybindLabel.Size = UDim2.new(1, 0, 0, 25)
-keybindLabel.Position = UDim2.new(0, 0, 0, 195)
-keybindLabel.BackgroundTransparency = 1
-keybindLabel.Text = "⌨️ Клавиша активации:"
-keybindLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-keybindLabel.TextXAlignment = Enum.TextXAlignment.Left
-keybindLabel.Font = Enum.Font.Gotham
-keybindLabel.TextSize = 13
-keybindLabel.Parent = contentFrame
-
-local keybindFrame = Instance.new("Frame")
-keybindFrame.Size = UDim2.new(1, 0, 0, 45)
-keybindFrame.Position = UDim2.new(0, 0, 0, 220)
-keybindFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
-keybindFrame.BorderSizePixel = 0
-keybindFrame.Parent = contentFrame
-
-local keybindCorners = Instance.new("UICorner")
-keybindCorners.CornerRadius = UDim.new(0, 8)
-keybindCorners.Parent = keybindFrame
-
-local keybindText = Instance.new("TextLabel")
-keybindText.Size = UDim2.new(0.5, -10, 1, -10)
-keybindText.Position = UDim2.new(0, 10, 0, 5)
-keybindText.BackgroundColor3 = Color3.fromRGB(55, 65, 90)
-keybindText.BorderSizePixel = 0
-keybindText.Text = tostring(toggleKey):gsub("Enum.KeyCode.", "")
-keybindText.TextColor3 = Color3.fromRGB(255, 255, 255)
-keybindText.Font = Enum.Font.GothamBold
-keybindText.TextSize = 18
-keybindText.Parent = keybindFrame
-
-local keybindTextCorners = Instance.new("UICorner")
-keybindTextCorners.CornerRadius = UDim.new(0, 6)
-keybindTextCorners.Parent = keybindText
-
-local changeKeyButton = Instance.new("TextButton")
-changeKeyButton.Size = UDim2.new(0.45, -10, 1, -10)
-changeKeyButton.Position = UDim2.new(0.55, 5, 0, 5)
-changeKeyButton.BackgroundColor3 = Color3.fromRGB(100, 120, 200)
-changeKeyButton.BorderSizePixel = 0
-changeKeyButton.Text = "Изменить"
-changeKeyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-changeKeyButton.Font = Enum.Font.GothamBold
-changeKeyButton.TextSize = 14
-changeKeyButton.Parent = keybindFrame
-
-local changeKeyCorners = Instance.new("UICorner")
-changeKeyCorners.CornerRadius = UDim.new(0, 6)
-changeKeyCorners.Parent = changeKeyButton
+-- Инфо о клавише
+local keyText = Instance.new("TextLabel")
+keyText.Size = UDim2.new(1, 0, 0, 25)
+keyText.Position = UDim2.new(0, 0, 0, 180)
+keyText.BackgroundTransparency = 1
+keyText.Text = "⌨️ Клавиша: T"
+keyText.TextColor3 = Color3.fromRGB(200, 200, 200)
+keyText.Font = Enum.Font.Gotham
+keyText.TextSize = 13
+keyText.Parent = content
 
 -- Кнопка старт/стоп
-local toggleButton = Instance.new("TextButton")
-toggleButton.Size = UDim2.new(1, 0, 0, 55)
-toggleButton.Position = UDim2.new(0, 0, 0, 280)
-toggleButton.BackgroundColor3 = Color3.fromRGB(80, 180, 80)
-toggleButton.BorderSizePixel = 0
-toggleButton.Text = "▶ СТАРТ"
-toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-toggleButton.Font = Enum.Font.GothamBold
-toggleButton.TextSize = 18
-toggleButton.Parent = contentFrame
+local toggleBtn = Instance.new("TextButton")
+toggleBtn.Size = UDim2.new(1, 0, 0, 45)
+toggleBtn.Position = UDim2.new(0, 0, 0, 215)
+toggleBtn.BackgroundColor3 = Color3.fromRGB(80, 180, 80)
+toggleBtn.BorderSizePixel = 0
+toggleBtn.Text = "▶ СТАРТ"
+toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleBtn.Font = Enum.Font.GothamBold
+toggleBtn.TextSize = 16
+toggleBtn.Parent = content
 
-local toggleCorners = Instance.new("UICorner")
-toggleCorners.CornerRadius = UDim.new(0, 8)
-toggleCorners.Parent = toggleButton
+-- Текущая стрела
+local currentDisplay = Instance.new("TextLabel")
+currentDisplay.Size = UDim2.new(1, 0, 0, 25)
+currentDisplay.Position = UDim2.new(0, 0, 0, 270)
+currentDisplay.BackgroundTransparency = 1
+currentDisplay.Text = "📌 Текущая: " .. currentArrow
+currentDisplay.TextColor3 = Color3.fromRGB(200, 200, 100)
+currentDisplay.Font = Enum.Font.Gotham
+currentDisplay.TextSize = 12
+currentDisplay.Parent = content
 
--- Текущая стрела (отображение)
-local currentArrowDisplay = Instance.new("TextLabel")
-currentArrowDisplay.Size = UDim2.new(1, 0, 0, 25)
-currentArrowDisplay.Position = UDim2.new(0, 0, 0, 345)
-currentArrowDisplay.BackgroundColor3 = Color3.fromRGB(40, 45, 60)
-currentArrowDisplay.BackgroundTransparency = 0.5
-currentArrowDisplay.BorderSizePixel = 0
-currentArrowDisplay.Text = "📌 Текущая: " .. currentArrow
-currentArrowDisplay.TextColor3 = Color3.fromRGB(200, 200, 100)
-currentArrowDisplay.Font = Enum.Font.Gotham
-currentArrowDisplay.TextSize = 12
-currentArrowDisplay.Parent = contentFrame
-
-local displayCorners = Instance.new("UICorner")
-displayCorners.CornerRadius = UDim.new(0, 4)
-displayCorners.Parent = currentArrowDisplay
-
--- Информация
-local infoText = Instance.new("TextLabel")
-infoText.Size = UDim2.new(1, 0, 0, 35)
-infoText.Position = UDim2.new(0, 0, 0, 380)
-infoText.BackgroundTransparency = 1
-infoText.Text = "💡 Стреляет от тела персонажа\n   вперёд (куда смотрит персонаж)"
-infoText.TextColor3 = Color3.fromRGB(150, 150, 170)
-infoText.TextXAlignment = Enum.TextXAlignment.Left
-infoText.Font = Enum.Font.Gotham
-infoText.TextSize = 11
-infoText.Parent = contentFrame
-
--- ===== ФУНКЦИЯ ПОИСКА ЛУКА =====
-local function findBow()
-    local currentCharacter = player.Character
-    if not currentCharacter then
-        bow = nil
+-- Обновление статуса лука
+local function updateBowStatus()
+    local s = getShootFunction()
+    if s then
+        shoot = s
+        bowStatus.Text = "🎯 Лук: НАЙДЕН ✅"
+        bowStatus.TextColor3 = Color3.fromRGB(100, 255, 100)
+        return true
+    else
         shoot = nil
-        bowStatusText.Text = "🎯 Лук: ПЕРСОНАЖ ОТСУТСТВУЕТ"
-        bowStatusText.TextColor3 = Color3.fromRGB(255, 100, 100)
+        bowStatus.Text = "🎯 Лук: НЕ НАЙДЕН (возьмите лук)"
+        bowStatus.TextColor3 = Color3.fromRGB(255, 100, 100)
         return false
     end
-    
-    local foundBow = currentCharacter:FindFirstChild("Prism Bow")
-    if foundBow then
-        bow = foundBow
-        shoot = bow:FindFirstChild("Shoot")
-        if shoot then
-            bowStatusText.Text = "🎯 Лук: НАЙДЕН ✅"
-            bowStatusText.TextColor3 = Color3.fromRGB(100, 255, 100)
-            return true
-        else
-            bowStatusText.Text = "🎯 Лук: НЕТ КОМПОНЕНТА SHOOT"
-            bowStatusText.TextColor3 = Color3.fromRGB(255, 200, 100)
-        end
-    else
-        bowStatusText.Text = "🎯 Лук: НЕ НАЙДЕН"
-        bowStatusText.TextColor3 = Color3.fromRGB(255, 100, 100)
-    end
-    
-    bow = nil
-    shoot = nil
-    return false
 end
 
--- Функция выстрела (с проверкой наличия лука)
-local function shootArrow()
-    if not isShooting then return end
-    
-    -- Проверяем лук каждый раз
-    if not bow or not shoot then
-        if not findBow() then
-            return
-        end
+-- Проверяем лук каждую секунду
+task.spawn(function()
+    while screenGui and screenGui.Parent do
+        updateBowStatus()
+        task.wait(1)
     end
-    
-    local currentCharacter = player.Character
-    if not currentCharacter then return end
-    
-    local humanoidRootPart = currentCharacter:FindFirstChild("HumanoidRootPart")
-    if not humanoidRootPart then return end
-    
-    local targetPosition = humanoidRootPart.Position + humanoidRootPart.CFrame.LookVector * distance
-    
-    local args = {
-        targetPosition,
-        currentArrow,
-        true,
-        1
-    }
-    
-    pcall(function()
-        shoot:InvokeServer(unpack(args))
-    end)
-end
-
--- Поиск лука при смене персонажа или предмета
-player.CharacterAdded:Connect(function(newCharacter)
-    character = newCharacter
-    findBow()
 end)
 
--- Также проверяем при добавлении предметов (если лук появился позже)
-if player.Character then
-    player.Character.ChildAdded:Connect(function(child)
-        if child.Name == "Prism Bow" then
-            findBow()
-        end
-    end)
-end
-
--- Начальный поиск лука
-findBow()
-
--- ===== ЛОГИКА СТРЕЛЬБЫ =====
+-- Логика стрельбы
 local renderConnection = nil
 
 local function startShooting()
@@ -389,11 +222,10 @@ local function startShooting()
             shootArrow()
         end
     end)
-    statusText.Text = "Статус: АКТИВЕН 🔫"
+    statusText.Text = "🔫 Статус: АКТИВЕН"
     statusText.TextColor3 = Color3.fromRGB(100, 255, 100)
-    toggleButton.Text = "⏸ СТОП"
-    toggleButton.BackgroundColor3 = Color3.fromRGB(200, 80, 80)
-    statusIcon.Text = "🔫"
+    toggleBtn.Text = "⏸ СТОП"
+    toggleBtn.BackgroundColor3 = Color3.fromRGB(200, 80, 80)
 end
 
 local function stopShooting()
@@ -401,15 +233,14 @@ local function stopShooting()
         renderConnection:Disconnect()
         renderConnection = nil
     end
-    statusText.Text = "Статус: ОСТАНОВЛЕН"
+    statusText.Text = "⚡ Статус: ОСТАНОВЛЕН"
     statusText.TextColor3 = Color3.fromRGB(255, 100, 100)
-    toggleButton.Text = "▶ СТАРТ"
-    toggleButton.BackgroundColor3 = Color3.fromRGB(80, 180, 80)
-    statusIcon.Text = "⚡"
+    toggleBtn.Text = "▶ СТАРТ"
+    toggleBtn.BackgroundColor3 = Color3.fromRGB(80, 180, 80)
 end
 
--- Обработчики GUI
-toggleButton.MouseButton1Click:Connect(function()
+-- Обработчики
+toggleBtn.MouseButton1Click:Connect(function()
     if isShooting then
         isShooting = false
         stopShooting()
@@ -419,59 +250,21 @@ toggleButton.MouseButton1Click:Connect(function()
     end
 end)
 
--- Применение названия стрелы
-applyArrowButton.MouseButton1Click:Connect(function()
+applyBtn.MouseButton1Click:Connect(function()
     local newArrow = arrowInput.Text
-    if newArrow ~= nil and newArrow ~= "" then
+    if newArrow ~= "" then
         currentArrow = newArrow
-        currentArrowDisplay.Text = "📌 Текущая: " .. currentArrow
-        print("Стрела изменена на: " .. currentArrow)
-        
-        applyArrowButton.BackgroundColor3 = Color3.fromRGB(100, 200, 100)
+        currentDisplay.Text = "📌 Текущая: " .. currentArrow
+        print("Стрела: " .. currentArrow)
+        applyBtn.BackgroundColor3 = Color3.fromRGB(100, 200, 100)
         task.wait(0.2)
-        applyArrowButton.BackgroundColor3 = Color3.fromRGB(80, 140, 200)
-    else
-        applyArrowButton.BackgroundColor3 = Color3.fromRGB(200, 80, 80)
-        task.wait(0.2)
-        applyArrowButton.BackgroundColor3 = Color3.fromRGB(80, 140, 200)
+        applyBtn.BackgroundColor3 = Color3.fromRGB(80, 140, 200)
     end
 end)
 
-arrowInput.FocusLost:Connect(function(enterPressed)
-    if enterPressed then
-        local newArrow = arrowInput.Text
-        if newArrow ~= nil and newArrow ~= "" then
-            currentArrow = newArrow
-            currentArrowDisplay.Text = "📌 Текущая: " .. currentArrow
-            print("Стрела изменена на: " .. currentArrow)
-        end
-    end
-end)
-
--- Изменение клавиши
-local waitingForKey = false
-changeKeyButton.MouseButton1Click:Connect(function()
-    waitingForKey = true
-    keybindText.Text = "..."
-    keybindText.BackgroundColor3 = Color3.fromRGB(120, 100, 80)
-    changeKeyButton.Text = "Ожидание..."
-end)
-
+-- Бинд клавиши T
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
-    
-    if waitingForKey then
-        if input.KeyCode ~= Enum.KeyCode.Unknown then
-            toggleKey = input.KeyCode
-            keybindText.Text = tostring(toggleKey):gsub("Enum.KeyCode.", "")
-            keybindText.BackgroundColor3 = Color3.fromRGB(55, 65, 90)
-            changeKeyButton.Text = "Изменить"
-            waitingForKey = false
-            print("Клавиша изменена на: " .. tostring(toggleKey))
-        end
-        return
-    end
-    
     if input.KeyCode == toggleKey then
         if isShooting then
             isShooting = false
@@ -483,36 +276,16 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
--- Сворачивание
-local minimized = false
-local originalHeight = 480
-
-minimizeButton.MouseButton1Click:Connect(function()
-    minimized = not minimized
-    if minimized then
-        TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {Size = UDim2.new(0, 340, 0, 45)}):Play()
-        contentFrame.Visible = false
-        minimizeButton.Text = "□"
-    else
-        TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {Size = UDim2.new(0, 340, 0, originalHeight)}):Play()
-        contentFrame.Visible = true
-        minimizeButton.Text = "─"
-    end
-end)
-
 -- Закрытие
-closeButton.MouseButton1Click:Connect(function()
+closeBtn.MouseButton1Click:Connect(function()
     if renderConnection then
         renderConnection:Disconnect()
     end
     screenGui:Destroy()
 end)
 
--- Перетаскивание окна
-local dragging = false
-local dragStart
-local frameStart
-
+-- Перетаскивание
+local dragStart, frameStart, dragging = nil, nil, false
 titleBar.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
         dragging = true
@@ -534,6 +307,6 @@ UserInputService.InputChanged:Connect(function(input)
     end
 end)
 
-print("✅ GUI загружен! (не требует наличия лука)")
-print("💡 Стрела по умолчанию: Arrow | Клавиша: T")
-print("🎯 Лук будет найден автоматически, когда вы его возьмёте")
+print("✅ Меню загружено! Прыгать МОЖНО!")
+print("💡 Нажми T для старта/остановки стрельбы")
+print("🎯 Возьмите лук 'Prism Bow' в руки")
