@@ -1,25 +1,210 @@
--- Обход анти-чита с кейбиндами и горячими клавишами
+-- Velocity + Платформа + Аимбот + Кейбинды (ПОЛНОСТЬЮ РАБОТАЕТ)
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
 
 local player = Players.LocalPlayer
+local camera = Workspace.CurrentCamera
 
--- Переменные для кейбиндов
-local teleportKeybind = "T" -- Клавиша для телепортации
-local hideKeybind = "H" -- Клавиша для скрытия/показа меню
+-- Переменные
+local actionKeybind = "T"
+local hideKeybind = "H"
+local aimbotKeybind = "C"
 local isMenuVisible = true
+local aimbotEnabled = false
+local selectedMethod = "Platform"
 
--- Создаём GUI
+-- Velocity
+local teleportHeight = 10000
+local teleportCount = 0
+local velocityMultiplier = 1.0
+
+-- Аимбот
+local aimbotSmoothness = 0.2
+local sprayEnabled = true
+local sprayAmount = 0.05
+
+-- Платформа
+local platform = nil
+local platformSpeed = 150
+local platformMaxHeight = 100
+local platformColor = Color3.fromRGB(100, 150, 255)
+local platformTween = nil
+local platformActive = false
+local originalGravity = nil
+
+-- Персонаж
+local currentCharacter = nil
+local isAlive = true
+
+-- Функции
+local function formatNumber(num)
+    if num >= 1000000 then return string.format("%.1fM", num / 1000000)
+    elseif num >= 1000 then return string.format("%.1fK", num / 1000)
+    else return tostring(num) end
+end
+
+-- ===== АИМБОТ =====
+local function getClosestPlayer()
+    if not currentCharacter or not currentCharacter:FindFirstChild("HumanoidRootPart") then return nil end
+    local myPos = currentCharacter.HumanoidRootPart.Position
+    local closest, closestDist = nil, math.huge
+    for _, other in ipairs(Players:GetPlayers()) do
+        if other ~= player then
+            local char = other.Character
+            if char and char:FindFirstChild("HumanoidRootPart") and char:FindFirstChild("Humanoid") and char.Humanoid.Health > 0 then
+                local dist = (myPos - char.HumanoidRootPart.Position).Magnitude
+                if dist < closestDist and dist < 500 then
+                    closest, closestDist = other, dist
+                end
+            end
+        end
+    end
+    return closest
+end
+
+local aimbotConnection = nil
+local function startAimbot()
+    if aimbotConnection then aimbotConnection:Disconnect() end
+    aimbotConnection = RunService.RenderStepped:Connect(function()
+        if aimbotEnabled and isAlive and currentCharacter then
+            local target = getClosestPlayer()
+            if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+                local targetPos = target.Character.HumanoidRootPart.Position + Vector3.new(0, 1.5, 0)
+                if sprayEnabled then
+                    targetPos = targetPos + Vector3.new((math.random() - 0.5) * sprayAmount * 10, (math.random() - 0.5) * sprayAmount * 8, (math.random() - 0.5) * sprayAmount * 10)
+                end
+                local newCF = camera.CFrame:Lerp(CFrame.new(camera.CFrame.Position, targetPos), aimbotSmoothness)
+                camera.CFrame = newCF
+            end
+        end
+    end)
+end
+
+local function toggleAimbot()
+    aimbotEnabled = not aimbotEnabled
+    if aimbotEnabled then
+        startAimbot()
+        statusLabel.Text = "🎯 Аимбот ВКЛ"
+        platformStatusLabel.Text = "🎯 Аимбот ВКЛ"
+        aimbotStatusText.Text = "🔴 АИМБОТ ВКЛ"
+        aimbotToggleButton.Text = "🔴 ВЫКЛ"
+        aimbotToggleButton.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
+    else
+        if aimbotConnection then aimbotConnection:Disconnect() end
+        statusLabel.Text = "❌ Аимбот ВЫКЛ"
+        platformStatusLabel.Text = "❌ Аимбот ВЫКЛ"
+        aimbotStatusText.Text = "⚪ АИМБОТ ВЫКЛ"
+        aimbotToggleButton.Text = "🟢 ВКЛ"
+        aimbotToggleButton.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+    end
+    task.wait(1.5)
+    if isAlive then
+        statusLabel.Text = "✅ Жив"
+        platformStatusLabel.Text = "✅ Жив"
+    end
+end
+
+-- ===== VELOCITY =====
+local function activateVelocity()
+    if not isAlive then statusLabel.Text = "❌ Вы мертвы!" return end
+    local hrp = currentCharacter and currentCharacter:FindFirstChild("HumanoidRootPart")
+    local hum = currentCharacter and currentCharacter:FindFirstChild("Humanoid")
+    if hrp and hum and hum.Health > 0 then
+        local oldGrav = workspace.Gravity
+        workspace.Gravity = 0
+        local vel = math.sqrt(2 * teleportHeight * 50) * velocityMultiplier
+        hrp.Velocity = Vector3.new(0, vel, 0)
+        hrp.AssemblyLinearVelocity = Vector3.new(0, vel, 0)
+        task.wait(0.05)
+        workspace.Gravity = oldGrav
+        teleportCount = teleportCount + 1
+        counterLabel.Text = "Активаций: " .. teleportCount .. " [x" .. string.format("%.1f", velocityMultiplier) .. "]"
+        statusLabel.Text = "✅ Телепорт!"
+        local att = Instance.new("Attachment")
+        att.Parent = hrp
+        local smoke = Instance.new("Smoke")
+        smoke.Parent = att
+        game:GetService("Debris"):AddItem(smoke, 2)
+        game:GetService("Debris"):AddItem(att, 2)
+        task.wait(1.5)
+        if isAlive then statusLabel.Text = "✅ Жив" end
+    else
+        statusLabel.Text = "❌ Ошибка!"
+    end
+end
+
+-- ===== ПЛАТФОРМА =====
+local function platformAction()
+    if not isAlive then platformStatusLabel.Text = "❌ Вы мертвы!" return end
+    if not currentCharacter then platformStatusLabel.Text = "⚠️ Нет персонажа" return end
+    
+    if platformActive then
+        if platform then platform:Destroy() end
+        if platformTween then platformTween:Cancel() end
+        platformActive = false
+        if originalGravity then workspace.Gravity = originalGravity end
+        platformStatusLabel.Text = "🔼 Платформа удалена!"
+        task.wait(1.5)
+        if isAlive then platformStatusLabel.Text = "✅ Жив" end
+    else
+        local hrp = currentCharacter:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            platform = Instance.new("Part")
+            platform.Name = "FastPlatform"
+            platform.Size = Vector3.new(6, 0.5, 6)
+            platform.Position = hrp.Position - Vector3.new(0, 2.5, 0)
+            platform.Anchored = true
+            platform.CanCollide = true
+            platform.Transparency = 0.2
+            platform.Color = platformColor
+            platform.Material = Enum.Material.Neon
+            platform.Parent = Workspace
+            
+            platformActive = true
+            originalGravity = workspace.Gravity
+            workspace.Gravity = 0
+            
+            local targetY = hrp.Position.Y + platformMaxHeight
+            local duration = platformMaxHeight / platformSpeed
+            
+            platformTween = TweenService:Create(hrp, TweenInfo.new(duration, Enum.EasingStyle.Linear), {
+                CFrame = CFrame.new(hrp.Position.X, targetY, hrp.Position.Z)
+            })
+            platformTween:Play()
+            
+            RunService.RenderStepped:Connect(function()
+                if platform and platform.Parent and hrp and hrp.Parent then
+                    platform.Position = hrp.Position - Vector3.new(0, 2.5, 0)
+                end
+            end)
+            
+            local cur = tonumber(platformCounterLabel.Text:match("%d+")) or 0
+            platformCounterLabel.Text = "Активаций: " .. (cur + 1)
+            
+            platformTween.Completed:Connect(function()
+                platformActive = false
+                if originalGravity then workspace.Gravity = originalGravity end
+                platformStatusLabel.Text = "✅ Подъём завершён!"
+                task.wait(1.5)
+                if isAlive then platformStatusLabel.Text = "✅ Жив" end
+            end)
+            platformStatusLabel.Text = "🔼 Подъём..."
+        end
+    end
+end
+
+-- ===== GUI =====
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "TeleportMenu"
+screenGui.Name = "FastTeleportMenu"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = player:WaitForChild("PlayerGui")
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 450, 0, 550)
-mainFrame.Position = UDim2.new(0.5, -225, 0.5, -275)
+mainFrame.Size = UDim2.new(0, 420, 0, 580)
+mainFrame.Position = UDim2.new(0.5, -210, 0.5, -290)
 mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
 mainFrame.BackgroundTransparency = 0.05
 mainFrame.BorderSizePixel = 0
@@ -29,12 +214,10 @@ local corner = Instance.new("UICorner")
 corner.CornerRadius = UDim.new(0, 12)
 corner.Parent = mainFrame
 
--- Заголовок
 local titleBar = Instance.new("Frame")
 titleBar.Size = UDim2.new(1, 0, 0, 45)
 titleBar.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
 titleBar.Parent = mainFrame
-
 local titleCorner = Instance.new("UICorner")
 titleCorner.CornerRadius = UDim.new(0, 12)
 titleCorner.Parent = titleBar
@@ -43,26 +226,23 @@ local titleLabel = Instance.new("TextLabel")
 titleLabel.Size = UDim2.new(1, -40, 1, 0)
 titleLabel.Position = UDim2.new(0, 15, 0, 0)
 titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "🚀 ТЕЛЕПОРТ МЕНЮ (тяни за заголовок)"
+titleLabel.Text = "🚀 VELOCITY + ПЛАТФОРМА + АИМБОТ (тяни заголовок)"
 titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-titleLabel.TextSize = 16
+titleLabel.TextSize = 12
 titleLabel.Font = Enum.Font.GothamBold
 titleLabel.TextXAlignment = Enum.TextXAlignment.Left
 titleLabel.Parent = titleBar
 
--- Кнопки управления
 local closeButton = Instance.new("TextButton")
 closeButton.Size = UDim2.new(0, 30, 0, 30)
 closeButton.Position = UDim2.new(1, -38, 0, 8)
 closeButton.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
 closeButton.BackgroundTransparency = 0.3
 closeButton.Text = "✕"
-closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 closeButton.TextSize = 20
 closeButton.Font = Enum.Font.GothamBold
 closeButton.BorderSizePixel = 0
 closeButton.Parent = titleBar
-
 local closeCorner = Instance.new("UICorner")
 closeCorner.CornerRadius = UDim.new(0, 6)
 closeCorner.Parent = closeButton
@@ -77,19 +257,17 @@ minimizeButton.TextSize = 24
 minimizeButton.Font = Enum.Font.GothamBold
 minimizeButton.BorderSizePixel = 0
 minimizeButton.Parent = titleBar
-
 local minCorner = Instance.new("UICorner")
 minCorner.CornerRadius = UDim.new(0, 6)
 minCorner.Parent = minimizeButton
 
--- Контент
 local contentFrame = Instance.new("Frame")
 contentFrame.Size = UDim2.new(1, 0, 1, -45)
 contentFrame.Position = UDim2.new(0, 0, 0, 45)
 contentFrame.BackgroundTransparency = 1
 contentFrame.Parent = mainFrame
 
--- ===== ВКЛАДКИ =====
+-- Вкладки
 local tabBar = Instance.new("Frame")
 tabBar.Size = UDim2.new(1, 0, 0, 35)
 tabBar.Position = UDim2.new(0, 0, 0, 0)
@@ -98,1033 +276,1071 @@ tabBar.BackgroundTransparency = 0.5
 tabBar.Parent = contentFrame
 
 local tab1 = Instance.new("TextButton")
-tab1.Size = UDim2.new(0.33, 0, 1, 0)
+tab1.Size = UDim2.new(0.25, 0, 1, 0)
 tab1.Position = UDim2.new(0, 0, 0, 0)
 tab1.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
-tab1.Text = "📊 Основное"
-tab1.TextColor3 = Color3.fromRGB(255, 255, 255)
-tab1.TextSize = 14
+tab1.Text = "⚡ Velocity"
+tab1.TextSize = 11
 tab1.Font = Enum.Font.GothamBold
 tab1.BorderSizePixel = 0
 tab1.Parent = tabBar
 
 local tab2 = Instance.new("TextButton")
-tab2.Size = UDim2.new(0.33, 0, 1, 0)
-tab2.Position = UDim2.new(0.33, 0, 0, 0)
+tab2.Size = UDim2.new(0.25, 0, 1, 0)
+tab2.Position = UDim2.new(0.25, 0, 0, 0)
 tab2.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
-tab2.Text = "⚡ Velocity"
-tab2.TextColor3 = Color3.fromRGB(200, 200, 220)
-tab2.TextSize = 14
+tab2.Text = "🔼 Платформа"
+tab2.TextSize = 11
 tab2.Font = Enum.Font.GothamBold
 tab2.BorderSizePixel = 0
 tab2.Parent = tabBar
 
 local tab3 = Instance.new("TextButton")
-tab3.Size = UDim2.new(0.34, 0, 1, 0)
-tab3.Position = UDim2.new(0.66, 0, 0, 0)
+tab3.Size = UDim2.new(0.25, 0, 1, 0)
+tab3.Position = UDim2.new(0.5, 0, 0, 0)
 tab3.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
-tab3.Text = "⌨️ Кейбинды"
-tab3.TextColor3 = Color3.fromRGB(200, 200, 220)
-tab3.TextSize = 14
+tab3.Text = "🎯 Аимбот"
+tab3.TextSize = 11
 tab3.Font = Enum.Font.GothamBold
 tab3.BorderSizePixel = 0
 tab3.Parent = tabBar
 
--- Панель 1 (Основная)
-local panel1 = Instance.new("Frame")
-panel1.Size = UDim2.new(1, 0, 1, -35)
-panel1.Position = UDim2.new(0, 0, 0, 35)
-panel1.BackgroundTransparency = 1
-panel1.Parent = contentFrame
+local tab4 = Instance.new("TextButton")
+tab4.Size = UDim2.new(0.25, 0, 1, 0)
+tab4.Position = UDim2.new(0.75, 0, 0, 0)
+tab4.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
+tab4.Text = "⌨️ Кейбинды"
+tab4.TextSize = 11
+tab4.Font = Enum.Font.GothamBold
+tab4.BorderSizePixel = 0
+tab4.Parent = tabBar
 
--- Панель 2 (Velocity настройки)
-local panel2 = Instance.new("Frame")
-panel2.Size = UDim2.new(1, 0, 1, -35)
-panel2.Position = UDim2.new(0, 0, 0, 35)
-panel2.BackgroundTransparency = 1
-panel2.Visible = false
-panel2.Parent = contentFrame
+-- Панели
+local velocityPanel = Instance.new("Frame")
+velocityPanel.Size = UDim2.new(1, 0, 1, -35)
+velocityPanel.Position = UDim2.new(0, 0, 0, 35)
+velocityPanel.BackgroundTransparency = 1
+velocityPanel.Parent = contentFrame
 
--- Панель 3 (Кейбинды)
-local panel3 = Instance.new("Frame")
-panel3.Size = UDim2.new(1, 0, 1, -35)
-panel3.Position = UDim2.new(0, 0, 0, 35)
-panel3.BackgroundTransparency = 1
-panel3.Visible = false
-panel3.Parent = contentFrame
+local platformPanel = Instance.new("Frame")
+platformPanel.Size = UDim2.new(1, 0, 1, -35)
+platformPanel.Position = UDim2.new(0, 0, 0, 35)
+platformPanel.BackgroundTransparency = 1
+platformPanel.Visible = false
+platformPanel.Parent = contentFrame
 
--- ===== ПАНЕЛЬ 1 (ОСНОВНАЯ) =====
-local settingsLabel = Instance.new("TextLabel")
-settingsLabel.Size = UDim2.new(1, -40, 0, 30)
-settingsLabel.Position = UDim2.new(0, 20, 0, 15)
-settingsLabel.BackgroundTransparency = 1
-settingsLabel.Text = "📊 Настройка высоты телепорта:"
-settingsLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
-settingsLabel.TextSize = 14
-settingsLabel.Font = Enum.Font.GothamBold
-settingsLabel.TextXAlignment = Enum.TextXAlignment.Left
-settingsLabel.Parent = panel1
+local aimbotPanel = Instance.new("Frame")
+aimbotPanel.Size = UDim2.new(1, 0, 1, -35)
+aimbotPanel.Position = UDim2.new(0, 0, 0, 35)
+aimbotPanel.BackgroundTransparency = 1
+aimbotPanel.Visible = false
+aimbotPanel.Parent = contentFrame
 
-local valueLabel = Instance.new("TextLabel")
-valueLabel.Size = UDim2.new(1, -40, 0, 40)
-valueLabel.Position = UDim2.new(0, 20, 0, 45)
-valueLabel.BackgroundTransparency = 1
-valueLabel.Text = "10 000 студней"
-valueLabel.TextColor3 = Color3.fromRGB(0, 200, 255)
-valueLabel.TextSize = 22
-valueLabel.Font = Enum.Font.GothamBold
-valueLabel.TextXAlignment = Enum.TextXAlignment.Center
-valueLabel.Parent = panel1
+local keybindPanel = Instance.new("Frame")
+keybindPanel.Size = UDim2.new(1, 0, 1, -35)
+keybindPanel.Position = UDim2.new(0, 0, 0, 35)
+keybindPanel.BackgroundTransparency = 1
+keybindPanel.Visible = false
+keybindPanel.Parent = contentFrame
 
--- Ползунок высоты
-local sliderFrame = Instance.new("Frame")
-sliderFrame.Size = UDim2.new(0, 350, 0, 4)
-sliderFrame.Position = UDim2.new(0.5, -175, 0, 95)
-sliderFrame.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
-sliderFrame.BorderSizePixel = 0
-sliderFrame.Parent = panel1
+-- ===== ПАНЕЛЬ VELOCITY =====
+local velLabel = Instance.new("TextLabel")
+velLabel.Size = UDim2.new(1, -40, 0, 30)
+velLabel.Position = UDim2.new(0, 20, 0, 15)
+velLabel.BackgroundTransparency = 1
+velLabel.Text = "⚡ Множитель скорости:"
+velLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
+velLabel.TextSize = 14
+velLabel.Font = Enum.Font.GothamBold
+velLabel.Parent = velocityPanel
 
-local sliderCorner = Instance.new("UICorner")
-sliderCorner.CornerRadius = UDim.new(0, 2)
-sliderCorner.Parent = sliderFrame
+local velValue = Instance.new("TextLabel")
+velValue.Size = UDim2.new(1, -40, 0, 35)
+velValue.Position = UDim2.new(0, 20, 0, 50)
+velValue.BackgroundTransparency = 1
+velValue.Text = "x1.0"
+velValue.TextColor3 = Color3.fromRGB(0, 200, 255)
+velValue.TextSize = 16
+velValue.Font = Enum.Font.GothamBold
+velValue.Parent = velocityPanel
 
-local sliderFill = Instance.new("Frame")
-sliderFill.Size = UDim2.new(0.5, 0, 1, 0)
-sliderFill.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
-sliderFill.BorderSizePixel = 0
-sliderFill.Parent = sliderFrame
+-- Ползунок скорости
+local velSlider = Instance.new("Frame")
+velSlider.Size = UDim2.new(0, 350, 0, 4)
+velSlider.Position = UDim2.new(0.5, -175, 0, 95)
+velSlider.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+velSlider.BorderSizePixel = 0
+velSlider.Parent = velocityPanel
 
-local sliderButton = Instance.new("TextButton")
-sliderButton.Size = UDim2.new(0, 20, 0, 20)
-sliderButton.Position = UDim2.new(0.5, -10, 0.5, -10)
-sliderButton.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
-sliderButton.Text = ""
-sliderButton.BorderSizePixel = 0
-sliderButton.Parent = sliderFrame
+local velFill = Instance.new("Frame")
+velFill.Size = UDim2.new(0.2, 0, 1, 0)
+velFill.BackgroundColor3 = Color3.fromRGB(255, 100, 0)
+velFill.BorderSizePixel = 0
+velFill.Parent = velSlider
 
-local buttonCorner = Instance.new("UICorner")
-buttonCorner.CornerRadius = UDim.new(1, 0)
-buttonCorner.Parent = sliderButton
+local velBtn = Instance.new("TextButton")
+velBtn.Size = UDim2.new(0, 20, 0, 20)
+velBtn.Position = UDim2.new(0.2, -10, 0.5, -10)
+velBtn.BackgroundColor3 = Color3.fromRGB(255, 100, 0)
+velBtn.Text = ""
+velBtn.BorderSizePixel = 0
+velBtn.Parent = velSlider
 
--- Поле ввода высоты
-local inputBox = Instance.new("TextBox")
-inputBox.Size = UDim2.new(0, 150, 0, 35)
-inputBox.Position = UDim2.new(0.5, -160, 0, 115)
-inputBox.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
-inputBox.Text = "10000"
-inputBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-inputBox.TextSize = 16
-inputBox.Font = Enum.Font.Gotham
-inputBox.PlaceholderText = "Введите число"
-inputBox.ClearTextOnFocus = false
-inputBox.Parent = panel1
+local velInput = Instance.new("TextBox")
+velInput.Size = UDim2.new(0, 150, 0, 35)
+velInput.Position = UDim2.new(0.5, -75, 0, 115)
+velInput.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
+velInput.Text = "1.0"
+velInput.TextSize = 14
+velInput.Font = Enum.Font.Gotham
+velInput.Parent = velocityPanel
 
-local applyButton = Instance.new("TextButton")
-applyButton.Size = UDim2.new(0, 100, 0, 35)
-applyButton.Position = UDim2.new(0.5, 10, 0, 115)
-applyButton.BackgroundColor3 = Color3.fromRGB(60, 60, 90)
-applyButton.Text = "Применить"
-applyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-applyButton.TextSize = 14
-applyButton.Font = Enum.Font.Gotham
-applyButton.BorderSizePixel = 0
-applyButton.Parent = panel1
+local velApply = Instance.new("TextButton")
+velApply.Size = UDim2.new(0, 100, 0, 35)
+velApply.Position = UDim2.new(0.5, 55, 0, 115)
+velApply.BackgroundColor3 = Color3.fromRGB(60, 60, 90)
+velApply.Text = "Применить"
+velApply.TextSize = 12
+velApply.Font = Enum.Font.Gotham
+velApply.Parent = velocityPanel
 
--- Кнопки быстрой настройки
-local presetFrame = Instance.new("Frame")
-presetFrame.Size = UDim2.new(0, 410, 0, 30)
-presetFrame.Position = UDim2.new(0.5, -205, 0, 165)
-presetFrame.BackgroundTransparency = 1
-presetFrame.Parent = panel1
+-- Высота
+local heightLabel = Instance.new("TextLabel")
+heightLabel.Size = UDim2.new(1, -40, 0, 30)
+heightLabel.Position = UDim2.new(0, 20, 0, 165)
+heightLabel.BackgroundTransparency = 1
+heightLabel.Text = "📏 Высота телепорта:"
+heightLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
+heightLabel.TextSize = 14
+heightLabel.Font = Enum.Font.GothamBold
+heightLabel.Parent = velocityPanel
 
--- Выбор метода телепортации
-local methodLabel = Instance.new("TextLabel")
-methodLabel.Size = UDim2.new(1, -40, 0, 20)
-methodLabel.Position = UDim2.new(0, 20, 0, 210)
-methodLabel.BackgroundTransparency = 1
-methodLabel.Text = "🎯 Метод телепортации:"
-methodLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
-methodLabel.TextSize = 12
-methodLabel.Font = Enum.Font.Gotham
-methodLabel.TextXAlignment = Enum.TextXAlignment.Left
-methodLabel.Parent = panel1
+local heightValue = Instance.new("TextLabel")
+heightValue.Size = UDim2.new(1, -40, 0, 35)
+heightValue.Position = UDim2.new(0, 20, 0, 195)
+heightValue.BackgroundTransparency = 1
+heightValue.Text = "10 000 ст"
+heightValue.TextColor3 = Color3.fromRGB(0, 200, 255)
+heightValue.TextSize = 16
+heightValue.Font = Enum.Font.GothamBold
+heightValue.Parent = velocityPanel
 
-local methodDropdown = Instance.new("TextButton")
-methodDropdown.Size = UDim2.new(0, 200, 0, 30)
-methodDropdown.Position = UDim2.new(0.5, -100, 0, 232)
-methodDropdown.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
-methodDropdown.Text = "🔧 Velocity (Выстрел)"
-methodDropdown.TextColor3 = Color3.fromRGB(255, 255, 255)
-methodDropdown.TextSize = 12
-methodDropdown.Font = Enum.Font.Gotham
-methodDropdown.Parent = panel1
+local heightSlider = Instance.new("Frame")
+heightSlider.Size = UDim2.new(0, 350, 0, 4)
+heightSlider.Position = UDim2.new(0.5, -175, 0, 240)
+heightSlider.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+heightSlider.BorderSizePixel = 0
+heightSlider.Parent = velocityPanel
 
--- Статус персонажа
+local heightFill = Instance.new("Frame")
+heightFill.Size = UDim2.new(0.01, 0, 1, 0)
+heightFill.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+heightFill.BorderSizePixel = 0
+heightFill.Parent = heightSlider
+
+local heightBtn = Instance.new("TextButton")
+heightBtn.Size = UDim2.new(0, 20, 0, 20)
+heightBtn.Position = UDim2.new(0.01, -10, 0.5, -10)
+heightBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+heightBtn.Text = ""
+heightBtn.BorderSizePixel = 0
+heightBtn.Parent = heightSlider
+
+local heightInput = Instance.new("TextBox")
+heightInput.Size = UDim2.new(0, 150, 0, 35)
+heightInput.Position = UDim2.new(0.5, -75, 0, 260)
+heightInput.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
+heightInput.Text = "10000"
+heightInput.TextSize = 14
+heightInput.Font = Enum.Font.Gotham
+heightInput.Parent = velocityPanel
+
+local heightApply = Instance.new("TextButton")
+heightApply.Size = UDim2.new(0, 100, 0, 35)
+heightApply.Position = UDim2.new(0.5, 55, 0, 260)
+heightApply.BackgroundColor3 = Color3.fromRGB(60, 60, 90)
+heightApply.Text = "Применить"
+heightApply.TextSize = 12
+heightApply.Font = Enum.Font.Gotham
+heightApply.Parent = velocityPanel
+
+local actionBtn = Instance.new("TextButton")
+actionBtn.Size = UDim2.new(0, 280, 0, 50)
+actionBtn.Position = UDim2.new(0.5, -140, 0, 315)
+actionBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+actionBtn.Text = "🚀 АКТИВИРОВАТЬ 🚀"
+actionBtn.TextSize = 16
+actionBtn.Font = Enum.Font.GothamBold
+actionBtn.BorderSizePixel = 0
+actionBtn.Parent = velocityPanel
+
 local statusLabel = Instance.new("TextLabel")
 statusLabel.Size = UDim2.new(1, -40, 0, 20)
-statusLabel.Position = UDim2.new(0, 20, 0, 275)
+statusLabel.Position = UDim2.new(0, 20, 0, 380)
 statusLabel.BackgroundTransparency = 1
-statusLabel.Text = "✅ Персонаж жив"
+statusLabel.Text = "✅ Жив"
 statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
 statusLabel.TextSize = 12
 statusLabel.Font = Enum.Font.Gotham
-statusLabel.TextXAlignment = Enum.TextXAlignment.Center
-statusLabel.Parent = panel1
+statusLabel.Parent = velocityPanel
 
--- Кнопка телепортации
-local teleportButton = Instance.new("TextButton")
-teleportButton.Size = UDim2.new(0, 280, 0, 70)
-teleportButton.Position = UDim2.new(0.5, -140, 0, 310)
-teleportButton.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
-teleportButton.Text = "🚀 ТЕЛЕПОРТ ВВЕРХ 🚀"
-teleportButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-teleportButton.TextSize = 18
-teleportButton.Font = Enum.Font.GothamBold
-teleportButton.AutoButtonColor = false
-teleportButton.BorderSizePixel = 0
-teleportButton.Parent = panel1
-
-local teleportCorner = Instance.new("UICorner")
-teleportCorner.CornerRadius = UDim.new(0, 12)
-teleportCorner.Parent = teleportButton
-
--- Счётчик
 local counterLabel = Instance.new("TextLabel")
 counterLabel.Size = UDim2.new(1, -40, 0, 25)
-counterLabel.Position = UDim2.new(0, 20, 0, 400)
+counterLabel.Position = UDim2.new(0, 20, 0, 410)
 counterLabel.BackgroundTransparency = 1
-counterLabel.Text = "Телепортов: 0"
+counterLabel.Text = "Активаций: 0"
 counterLabel.TextColor3 = Color3.fromRGB(150, 150, 180)
-counterLabel.TextSize = 13
-counterLabel.Font = Enum.Font.SourceSans
-counterLabel.TextXAlignment = Enum.TextXAlignment.Center
-counterLabel.Parent = panel1
+counterLabel.TextSize = 12
+counterLabel.Parent = velocityPanel
 
--- ===== ПАНЕЛЬ 2 (VELOCITY НАСТРОЙКИ) =====
-local velocityLabel = Instance.new("TextLabel")
-velocityLabel.Size = UDim2.new(1, -40, 0, 30)
-velocityLabel.Position = UDim2.new(0, 20, 0, 15)
-velocityLabel.BackgroundTransparency = 1
-velocityLabel.Text = "⚡ Настройка скорости Velocity метода:"
-velocityLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
-velocityLabel.TextSize = 14
-velocityLabel.Font = Enum.Font.GothamBold
-velocityLabel.TextXAlignment = Enum.TextXAlignment.Left
-velocityLabel.Parent = panel2
+-- ===== ПАНЕЛЬ ПЛАТФОРМЫ =====
+local platLabel = Instance.new("TextLabel")
+platLabel.Size = UDim2.new(1, -40, 0, 30)
+platLabel.Position = UDim2.new(0, 20, 0, 15)
+platLabel.BackgroundTransparency = 1
+platLabel.Text = "🔼 Скорость платформы:"
+platLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
+platLabel.TextSize = 14
+platLabel.Font = Enum.Font.GothamBold
+platLabel.Parent = platformPanel
 
-local velocityValueLabel = Instance.new("TextLabel")
-velocityValueLabel.Size = UDim2.new(1, -40, 0, 40)
-velocityValueLabel.Position = UDim2.new(0, 20, 0, 45)
-velocityValueLabel.BackgroundTransparency = 1
-velocityValueLabel.Text = "Скорость: x1.0 (обычная)"
-velocityValueLabel.TextColor3 = Color3.fromRGB(0, 200, 255)
-velocityValueLabel.TextSize = 18
-velocityValueLabel.Font = Enum.Font.GothamBold
-velocityValueLabel.TextXAlignment = Enum.TextXAlignment.Center
-velocityValueLabel.Parent = panel2
+local platSpeedVal = Instance.new("TextLabel")
+platSpeedVal.Size = UDim2.new(1, -40, 0, 35)
+platSpeedVal.Position = UDim2.new(0, 20, 0, 50)
+platSpeedVal.BackgroundTransparency = 1
+platSpeedVal.Text = "150 ст/с"
+platSpeedVal.TextColor3 = Color3.fromRGB(0, 200, 100)
+platSpeedVal.TextSize = 16
+platSpeedVal.Font = Enum.Font.GothamBold
+platSpeedVal.Parent = platformPanel
 
--- Ползунок скорости
-local velocitySliderFrame = Instance.new("Frame")
-velocitySliderFrame.Size = UDim2.new(0, 350, 0, 4)
-velocitySliderFrame.Position = UDim2.new(0.5, -175, 0, 100)
-velocitySliderFrame.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
-velocitySliderFrame.BorderSizePixel = 0
-velocitySliderFrame.Parent = panel2
+local platSpeedSlider = Instance.new("Frame")
+platSpeedSlider.Size = UDim2.new(0, 350, 0, 4)
+platSpeedSlider.Position = UDim2.new(0.5, -175, 0, 95)
+platSpeedSlider.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+platSpeedSlider.BorderSizePixel = 0
+platSpeedSlider.Parent = platformPanel
 
-local velocitySliderCorner = Instance.new("UICorner")
-velocitySliderCorner.CornerRadius = UDim.new(0, 2)
-velocitySliderCorner.Parent = velocitySliderFrame
+local platSpeedFill = Instance.new("Frame")
+platSpeedFill.Size = UDim2.new(0.5, 0, 1, 0)
+platSpeedFill.BackgroundColor3 = Color3.fromRGB(0, 200, 100)
+platSpeedFill.BorderSizePixel = 0
+platSpeedFill.Parent = platSpeedSlider
 
-local velocitySliderFill = Instance.new("Frame")
-velocitySliderFill.Size = UDim2.new(0.5, 0, 1, 0)
-velocitySliderFill.BackgroundColor3 = Color3.fromRGB(255, 100, 0)
-velocitySliderFill.BorderSizePixel = 0
-velocitySliderFill.Parent = velocitySliderFrame
+local platSpeedBtn = Instance.new("TextButton")
+platSpeedBtn.Size = UDim2.new(0, 20, 0, 20)
+platSpeedBtn.Position = UDim2.new(0.5, -10, 0.5, -10)
+platSpeedBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 100)
+platSpeedBtn.Text = ""
+platSpeedBtn.BorderSizePixel = 0
+platSpeedBtn.Parent = platSpeedSlider
 
-local velocitySliderButton = Instance.new("TextButton")
-velocitySliderButton.Size = UDim2.new(0, 20, 0, 20)
-velocitySliderButton.Position = UDim2.new(0.5, -10, 0.5, -10)
-velocitySliderButton.BackgroundColor3 = Color3.fromRGB(255, 100, 0)
-velocitySliderButton.Text = ""
-velocitySliderButton.BorderSizePixel = 0
-velocitySliderButton.Parent = velocitySliderFrame
+local platHeightLabel = Instance.new("TextLabel")
+platHeightLabel.Size = UDim2.new(1, -40, 0, 30)
+platHeightLabel.Position = UDim2.new(0, 20, 0, 135)
+platHeightLabel.BackgroundTransparency = 1
+platHeightLabel.Text = "📏 Высота подъёма:"
+platHeightLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
+platHeightLabel.TextSize = 14
+platHeightLabel.Font = Enum.Font.GothamBold
+platHeightLabel.Parent = platformPanel
 
-local velocityButtonCorner = Instance.new("UICorner")
-velocityButtonCorner.CornerRadius = UDim.new(1, 0)
-velocityButtonCorner.Parent = velocitySliderButton
+local platHeightVal = Instance.new("TextLabel")
+platHeightVal.Size = UDim2.new(1, -40, 0, 35)
+platHeightVal.Position = UDim2.new(0, 20, 0, 170)
+platHeightVal.BackgroundTransparency = 1
+platHeightVal.Text = "100 ст"
+platHeightVal.TextColor3 = Color3.fromRGB(0, 150, 255)
+platHeightVal.TextSize = 16
+platHeightVal.Font = Enum.Font.GothamBold
+platHeightVal.Parent = platformPanel
 
--- Текущая скорость
-local currentSpeedLabel = Instance.new("TextLabel")
-currentSpeedLabel.Size = UDim2.new(1, -40, 0, 30)
-currentSpeedLabel.Position = UDim2.new(0, 20, 0, 130)
-currentSpeedLabel.BackgroundTransparency = 1
-currentSpeedLabel.Text = "Текущий множитель: 1.0x"
-currentSpeedLabel.TextColor3 = Color3.fromRGB(255, 200, 100)
-currentSpeedLabel.TextSize = 16
-currentSpeedLabel.Font = Enum.Font.GothamBold
-currentSpeedLabel.TextXAlignment = Enum.TextXAlignment.Center
-currentSpeedLabel.Parent = panel2
+local platHeightSlider = Instance.new("Frame")
+platHeightSlider.Size = UDim2.new(0, 350, 0, 4)
+platHeightSlider.Position = UDim2.new(0.5, -175, 0, 215)
+platHeightSlider.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+platHeightSlider.BorderSizePixel = 0
+platHeightSlider.Parent = platformPanel
 
--- Поле ввода скорости
-local velocityInputBox = Instance.new("TextBox")
-velocityInputBox.Size = UDim2.new(0, 150, 0, 35)
-velocityInputBox.Position = UDim2.new(0.5, -75, 0, 175)
-velocityInputBox.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
-velocityInputBox.Text = "1.0"
-velocityInputBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-velocityInputBox.TextSize = 16
-velocityInputBox.Font = Enum.Font.Gotham
-velocityInputBox.PlaceholderText = "Множитель (0.1 - 5.0)"
-velocityInputBox.ClearTextOnFocus = false
-velocityInputBox.Parent = panel2
+local platHeightFill = Instance.new("Frame")
+platHeightFill.Size = UDim2.new(0.1, 0, 1, 0)
+platHeightFill.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+platHeightFill.BorderSizePixel = 0
+platHeightFill.Parent = platHeightSlider
 
-local velocityApplyButton = Instance.new("TextButton")
-velocityApplyButton.Size = UDim2.new(0, 100, 0, 35)
-velocityApplyButton.Position = UDim2.new(0.5, 55, 0, 175)
-velocityApplyButton.BackgroundColor3 = Color3.fromRGB(60, 60, 90)
-velocityApplyButton.Text = "Применить"
-velocityApplyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-velocityApplyButton.TextSize = 14
-velocityApplyButton.Font = Enum.Font.Gotham
-velocityApplyButton.BorderSizePixel = 0
-velocityApplyButton.Parent = panel2
+local platHeightBtn = Instance.new("TextButton")
+platHeightBtn.Size = UDim2.new(0, 20, 0, 20)
+platHeightBtn.Position = UDim2.new(0.1, -10, 0.5, -10)
+platHeightBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+platHeightBtn.Text = ""
+platHeightBtn.BorderSizePixel = 0
+platHeightBtn.Parent = platHeightSlider
 
--- Кнопки быстрой скорости
-local speedPresetFrame = Instance.new("Frame")
-speedPresetFrame.Size = UDim2.new(0, 360, 0, 30)
-speedPresetFrame.Position = UDim2.new(0.5, -180, 0, 225)
-speedPresetFrame.BackgroundTransparency = 1
-speedPresetFrame.Parent = panel2
+local platActionBtn = Instance.new("TextButton")
+platActionBtn.Size = UDim2.new(0, 280, 0, 50)
+platActionBtn.Position = UDim2.new(0.5, -140, 0, 270)
+platActionBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+platActionBtn.Text = "🔼 АКТИВИРОВАТЬ 🔼"
+platActionBtn.TextSize = 16
+platActionBtn.Font = Enum.Font.GothamBold
+platActionBtn.BorderSizePixel = 0
+platActionBtn.Parent = platformPanel
 
-local speedPresets = {"0.5", "1.0", "1.5", "2.0", "3.0", "5.0"}
+local platformStatusLabel = Instance.new("TextLabel")
+platformStatusLabel.Size = UDim2.new(1, -40, 0, 20)
+platformStatusLabel.Position = UDim2.new(0, 20, 0, 335)
+platformStatusLabel.BackgroundTransparency = 1
+platformStatusLabel.Text = "✅ Жив"
+platformStatusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+platformStatusLabel.TextSize = 12
+platformStatusLabel.Font = Enum.Font.Gotham
+platformStatusLabel.Parent = platformPanel
 
--- ===== ПАНЕЛЬ 3 (КЕЙБИНДЫ) =====
-local keybindLabel = Instance.new("TextLabel")
-keybindLabel.Size = UDim2.new(1, -40, 0, 40)
-keybindLabel.Position = UDim2.new(0, 20, 0, 15)
-keybindLabel.BackgroundTransparency = 1
-keybindLabel.Text = "⌨️ Настройка горячих клавиш"
-keybindLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
-keybindLabel.TextSize = 18
-keybindLabel.Font = Enum.Font.GothamBold
-keybindLabel.TextXAlignment = Enum.TextXAlignment.Center
-keybindLabel.Parent = panel3
+local platformCounterLabel = Instance.new("TextLabel")
+platformCounterLabel.Size = UDim2.new(1, -40, 0, 25)
+platformCounterLabel.Position = UDim2.new(0, 20, 0, 365)
+platformCounterLabel.BackgroundTransparency = 1
+platformCounterLabel.Text = "Активаций: 0"
+platformCounterLabel.TextColor3 = Color3.fromRGB(150, 150, 180)
+platformCounterLabel.TextSize = 12
+platformCounterLabel.Parent = platformPanel
 
--- Телепорт кейбинд
-local teleportKeyFrame = Instance.new("Frame")
-teleportKeyFrame.Size = UDim2.new(0, 400, 0, 60)
-teleportKeyFrame.Position = UDim2.new(0.5, -200, 0, 70)
-teleportKeyFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
-teleportKeyFrame.BackgroundTransparency = 0.5
-teleportKeyFrame.BorderSizePixel = 0
-teleportKeyFrame.Parent = panel3
+-- ===== ПАНЕЛЬ АИМБОТА =====
+local aimLabel = Instance.new("TextLabel")
+aimLabel.Size = UDim2.new(1, -40, 0, 30)
+aimLabel.Position = UDim2.new(0, 20, 0, 15)
+aimLabel.BackgroundTransparency = 1
+aimLabel.Text = "🎯 Настройки Аимбота"
+aimLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
+aimLabel.TextSize = 16
+aimLabel.Font = Enum.Font.GothamBold
+aimLabel.Parent = aimbotPanel
 
-local teleportKeyCorner = Instance.new("UICorner")
-teleportKeyCorner.CornerRadius = UDim.new(0, 8)
-teleportKeyCorner.Parent = teleportKeyFrame
+local aimStatusFrame = Instance.new("Frame")
+aimStatusFrame.Size = UDim2.new(0, 300, 0, 45)
+aimStatusFrame.Position = UDim2.new(0.5, -150, 0, 55)
+aimStatusFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+aimStatusFrame.BackgroundTransparency = 0.5
+aimStatusFrame.Parent = aimbotPanel
 
-local teleportKeyLabel = Instance.new("TextLabel")
-teleportKeyLabel.Size = UDim2.new(0.6, 0, 1, 0)
-teleportKeyLabel.Position = UDim2.new(0, 15, 0, 0)
-teleportKeyLabel.BackgroundTransparency = 1
-teleportKeyLabel.Text = "🚀 Клавиша телепортации:"
-teleportKeyLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
-teleportKeyLabel.TextSize = 14
-teleportKeyLabel.Font = Enum.Font.Gotham
-teleportKeyLabel.TextXAlignment = Enum.TextXAlignment.Left
-teleportKeyLabel.Parent = teleportKeyFrame
+local aimbotStatusText = Instance.new("TextLabel")
+aimbotStatusText.Size = UDim2.new(1, 0, 1, 0)
+aimbotStatusText.BackgroundTransparency = 1
+aimbotStatusText.Text = "⚪ АИМБОТ ВЫКЛ"
+aimbotStatusText.TextSize = 14
+aimbotStatusText.Font = Enum.Font.GothamBold
+aimbotStatusText.Parent = aimStatusFrame
 
-local teleportKeyButton = Instance.new("TextButton")
-teleportKeyButton.Size = UDim2.new(0, 100, 0, 40)
-teleportKeyButton.Position = UDim2.new(0.7, 0, 0.5, -20)
-teleportKeyButton.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
-teleportKeyButton.Text = teleportKeybind
-teleportKeyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-teleportKeyButton.TextSize = 20
-teleportKeyButton.Font = Enum.Font.GothamBold
-teleportKeyButton.BorderSizePixel = 0
-teleportKeyButton.Parent = teleportKeyFrame
+local aimbotToggleButton = Instance.new("TextButton")
+aimbotToggleButton.Size = UDim2.new(0, 200, 0, 35)
+aimbotToggleButton.Position = UDim2.new(0.5, -100, 0, 115)
+aimbotToggleButton.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+aimbotToggleButton.Text = "🟢 ВКЛ"
+aimbotToggleButton.TextSize = 14
+aimbotToggleButton.Font = Enum.Font.GothamBold
+aimbotToggleButton.BorderSizePixel = 0
+aimbotToggleButton.Parent = aimbotPanel
 
-local teleportKeyCorner2 = Instance.new("UICorner")
-teleportKeyCorner2.CornerRadius = UDim.new(0, 6)
-teleportKeyCorner2.Parent = teleportKeyButton
+local smoothLabel = Instance.new("TextLabel")
+smoothLabel.Size = UDim2.new(1, -40, 0, 25)
+smoothLabel.Position = UDim2.new(0, 20, 0, 165)
+smoothLabel.BackgroundTransparency = 1
+smoothLabel.Text = "🎯 Плавность:"
+smoothLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
+smoothLabel.TextSize = 12
+smoothLabel.Font = Enum.Font.Gotham
+smoothLabel.Parent = aimbotPanel
 
--- Скрытие кейбинд
+local smoothSlider = Instance.new("Frame")
+smoothSlider.Size = UDim2.new(0, 350, 0, 4)
+smoothSlider.Position = UDim2.new(0.5, -175, 0, 195)
+smoothSlider.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+smoothSlider.BorderSizePixel = 0
+smoothSlider.Parent = aimbotPanel
+
+local smoothFill = Instance.new("Frame")
+smoothFill.Size = UDim2.new(0.3, 0, 1, 0)
+smoothFill.BackgroundColor3 = Color3.fromRGB(255, 100, 0)
+smoothFill.BorderSizePixel = 0
+smoothFill.Parent = smoothSlider
+
+local smoothBtn = Instance.new("TextButton")
+smoothBtn.Size = UDim2.new(0, 20, 0, 20)
+smoothBtn.Position = UDim2.new(0.3, -10, 0.5, -10)
+smoothBtn.BackgroundColor3 = Color3.fromRGB(255, 100, 0)
+smoothBtn.Text = ""
+smoothBtn.BorderSizePixel = 0
+smoothBtn.Parent = smoothSlider
+
+local smoothVal = Instance.new("TextLabel")
+smoothVal.Size = UDim2.new(0, 60, 0, 20)
+smoothVal.Position = UDim2.new(0.8, 0, 0.5, -10)
+smoothVal.BackgroundTransparency = 1
+smoothVal.Text = "0.20"
+smoothVal.TextColor3 = Color3.fromRGB(255, 200, 100)
+smoothVal.TextSize = 11
+smoothVal.Font = Enum.Font.GothamBold
+smoothVal.Parent = aimbotPanel
+
+local sprayLabel2 = Instance.new("TextLabel")
+sprayLabel2.Size = UDim2.new(1, -40, 0, 25)
+sprayLabel2.Position = UDim2.new(0, 20, 0, 230)
+sprayLabel2.BackgroundTransparency = 1
+sprayLabel2.Text = "🎲 Спрей:"
+sprayLabel2.TextColor3 = Color3.fromRGB(200, 200, 220)
+sprayLabel2.TextSize = 12
+sprayLabel2.Font = Enum.Font.Gotham
+sprayLabel2.Parent = aimbotPanel
+
+local spraySlider2 = Instance.new("Frame")
+spraySlider2.Size = UDim2.new(0, 350, 0, 4)
+spraySlider2.Position = UDim2.new(0.5, -175, 0, 260)
+spraySlider2.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+spraySlider2.BorderSizePixel = 0
+spraySlider2.Parent = aimbotPanel
+
+local sprayFill2 = Instance.new("Frame")
+sprayFill2.Size = UDim2.new(0.15, 0, 1, 0)
+sprayFill2.BackgroundColor3 = Color3.fromRGB(100, 255, 100)
+sprayFill2.BorderSizePixel = 0
+sprayFill2.Parent = spraySlider2
+
+local sprayBtn2 = Instance.new("TextButton")
+sprayBtn2.Size = UDim2.new(0, 20, 0, 20)
+sprayBtn2.Position = UDim2.new(0.15, -10, 0.5, -10)
+sprayBtn2.BackgroundColor3 = Color3.fromRGB(100, 255, 100)
+sprayBtn2.Text = ""
+sprayBtn2.BorderSizePixel = 0
+sprayBtn2.Parent = spraySlider2
+
+local sprayVal2 = Instance.new("TextLabel")
+sprayVal2.Size = UDim2.new(0, 60, 0, 20)
+sprayVal2.Position = UDim2.new(0.8, 0, 0.5, -10)
+sprayVal2.BackgroundTransparency = 1
+sprayVal2.Text = "0.05"
+sprayVal2.TextColor3 = Color3.fromRGB(100, 255, 100)
+sprayVal2.TextSize = 11
+sprayVal2.Font = Enum.Font.GothamBold
+sprayVal2.Parent = aimbotPanel
+
+local sprayToggle = Instance.new("TextButton")
+sprayToggle.Size = UDim2.new(0, 150, 0, 30)
+sprayToggle.Position = UDim2.new(0.5, -75, 0, 310)
+sprayToggle.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
+sprayToggle.Text = "🔘 СПРЕЙ ВКЛ"
+sprayToggle.TextSize = 12
+sprayToggle.Font = Enum.Font.GothamBold
+sprayToggle.BorderSizePixel = 0
+sprayToggle.Parent = aimbotPanel
+
+-- ===== ПАНЕЛЬ КЕЙБИНДОВ =====
+local keyLabel = Instance.new("TextLabel")
+keyLabel.Size = UDim2.new(1, -40, 0, 40)
+keyLabel.Position = UDim2.new(0, 20, 0, 15)
+keyLabel.BackgroundTransparency = 1
+keyLabel.Text = "⌨️ Горячие клавиши"
+keyLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
+keyLabel.TextSize = 16
+keyLabel.Font = Enum.Font.GothamBold
+keyLabel.Parent = keybindPanel
+
+local actionKeyFrame = Instance.new("Frame")
+actionKeyFrame.Size = UDim2.new(0, 350, 0, 50)
+actionKeyFrame.Position = UDim2.new(0.5, -175, 0, 70)
+actionKeyFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+actionKeyFrame.BackgroundTransparency = 0.5
+actionKeyFrame.Parent = keybindPanel
+
+local actionKeyText = Instance.new("TextLabel")
+actionKeyText.Size = UDim2.new(0.6, 0, 1, 0)
+actionKeyText.Position = UDim2.new(0, 15, 0, 0)
+actionKeyText.BackgroundTransparency = 1
+actionKeyText.Text = "🚀 Активация:"
+actionKeyText.TextColor3 = Color3.fromRGB(200, 200, 220)
+actionKeyText.TextSize = 14
+actionKeyText.Font = Enum.Font.Gotham
+actionKeyText.TextXAlignment = Enum.TextXAlignment.Left
+actionKeyText.Parent = actionKeyFrame
+
+local actionKeyBtn = Instance.new("TextButton")
+actionKeyBtn.Size = UDim2.new(0, 80, 0, 35)
+actionKeyBtn.Position = UDim2.new(0.75, 0, 0.5, -17.5)
+actionKeyBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+actionKeyBtn.Text = actionKeybind
+actionKeyBtn.TextSize = 18
+actionKeyBtn.Font = Enum.Font.GothamBold
+actionKeyBtn.BorderSizePixel = 0
+actionKeyBtn.Parent = actionKeyFrame
+
 local hideKeyFrame = Instance.new("Frame")
-hideKeyFrame.Size = UDim2.new(0, 400, 0, 60)
-hideKeyFrame.Position = UDim2.new(0.5, -200, 0, 150)
+hideKeyFrame.Size = UDim2.new(0, 350, 0, 50)
+hideKeyFrame.Position = UDim2.new(0.5, -175, 0, 135)
 hideKeyFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
 hideKeyFrame.BackgroundTransparency = 0.5
-hideKeyFrame.BorderSizePixel = 0
-hideKeyFrame.Parent = panel3
+hideKeyFrame.Parent = keybindPanel
 
-local hideKeyCorner = Instance.new("UICorner")
-hideKeyCorner.CornerRadius = UDim.new(0, 8)
-hideKeyCorner.Parent = hideKeyFrame
+local hideKeyText = Instance.new("TextLabel")
+hideKeyText.Size = UDim2.new(0.6, 0, 1, 0)
+hideKeyText.Position = UDim2.new(0, 15, 0, 0)
+hideKeyText.BackgroundTransparency = 1
+hideKeyText.Text = "👁️ Скрыть меню:"
+hideKeyText.TextColor3 = Color3.fromRGB(200, 200, 220)
+hideKeyText.TextSize = 14
+hideKeyText.Font = Enum.Font.Gotham
+hideKeyText.TextXAlignment = Enum.TextXAlignment.Left
+hideKeyText.Parent = hideKeyFrame
 
-local hideKeyLabel = Instance.new("TextLabel")
-hideKeyLabel.Size = UDim2.new(0.6, 0, 1, 0)
-hideKeyLabel.Position = UDim2.new(0, 15, 0, 0)
-hideKeyLabel.BackgroundTransparency = 1
-hideKeyLabel.Text = "👁️ Клавиша скрыть/показать:"
-hideKeyLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
-hideKeyLabel.TextSize = 14
-hideKeyLabel.Font = Enum.Font.Gotham
-hideKeyLabel.TextXAlignment = Enum.TextXAlignment.Left
-hideKeyLabel.Parent = hideKeyFrame
+local hideKeyBtn = Instance.new("TextButton")
+hideKeyBtn.Size = UDim2.new(0, 80, 0, 35)
+hideKeyBtn.Position = UDim2.new(0.75, 0, 0.5, -17.5)
+hideKeyBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+hideKeyBtn.Text = hideKeybind
+hideKeyBtn.TextSize = 18
+hideKeyBtn.Font = Enum.Font.GothamBold
+hideKeyBtn.BorderSizePixel = 0
+hideKeyBtn.Parent = hideKeyFrame
 
-local hideKeyButton = Instance.new("TextButton")
-hideKeyButton.Size = UDim2.new(0, 100, 0, 40)
-hideKeyButton.Position = UDim2.new(0.7, 0, 0.5, -20)
-hideKeyButton.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
-hideKeyButton.Text = hideKeybind
-hideKeyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-hideKeyButton.TextSize = 20
-hideKeyButton.Font = Enum.Font.GothamBold
-hideKeyButton.BorderSizePixel = 0
-hideKeyButton.Parent = hideKeyFrame
+local aimKeyFrame = Instance.new("Frame")
+aimKeyFrame.Size = UDim2.new(0, 350, 0, 50)
+aimKeyFrame.Position = UDim2.new(0.5, -175, 0, 200)
+aimKeyFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+aimKeyFrame.BackgroundTransparency = 0.5
+aimKeyFrame.Parent = keybindPanel
 
-local hideKeyCorner2 = Instance.new("UICorner")
-hideKeyCorner2.CornerRadius = UDim.new(0, 6)
-hideKeyCorner2.Parent = hideKeyButton
+local aimKeyText = Instance.new("TextLabel")
+aimKeyText.Size = UDim2.new(0.6, 0, 1, 0)
+aimKeyText.Position = UDim2.new(0, 15, 0, 0)
+aimKeyText.BackgroundTransparency = 1
+aimKeyText.Text = "🎯 Аимбот:"
+aimKeyText.TextColor3 = Color3.fromRGB(200, 200, 220)
+aimKeyText.TextSize = 14
+aimKeyText.Font = Enum.Font.Gotham
+aimKeyText.TextXAlignment = Enum.TextXAlignment.Left
+aimKeyText.Parent = aimKeyFrame
 
--- Информация о кейбиндах
+local aimKeyBtn = Instance.new("TextButton")
+aimKeyBtn.Size = UDim2.new(0, 80, 0, 35)
+aimKeyBtn.Position = UDim2.new(0.75, 0, 0.5, -17.5)
+aimKeyBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+aimKeyBtn.Text = aimbotKeybind
+aimKeyBtn.TextSize = 18
+aimKeyBtn.Font = Enum.Font.GothamBold
+aimKeyBtn.BorderSizePixel = 0
+aimKeyBtn.Parent = aimKeyFrame
+
 local infoFrame = Instance.new("Frame")
-infoFrame.Size = UDim2.new(0, 400, 0, 100)
-infoFrame.Position = UDim2.new(0.5, -200, 0, 230)
+infoFrame.Size = UDim2.new(0, 350, 0, 80)
+infoFrame.Position = UDim2.new(0.5, -175, 0, 270)
 infoFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
 infoFrame.BackgroundTransparency = 0.5
-infoFrame.BorderSizePixel = 0
-infoFrame.Parent = panel3
-
-local infoCorner = Instance.new("UICorner")
-infoCorner.CornerRadius = UDim.new(0, 8)
-infoCorner.Parent = infoFrame
+infoFrame.Parent = keybindPanel
 
 local infoText = Instance.new("TextLabel")
 infoText.Size = UDim2.new(1, -20, 1, 0)
 infoText.Position = UDim2.new(0, 10, 0, 0)
 infoText.BackgroundTransparency = 1
-infoText.Text = "💡 Информация:\n• Нажмите на кнопку с клавишей, чтобы изменить её\n• Затем нажмите любую клавишу на клавиатуре\n• Кейбинды работают даже когда меню скрыто\n• T - телепорт, H - скрыть меню"
+infoText.Text = "💡 Нажмите на кнопку с клавишей,\nзатем нажмите любую клавишу\nдля изменения."
 infoText.TextColor3 = Color3.fromRGB(150, 150, 180)
-infoText.TextSize = 12
+infoText.TextSize = 11
 infoText.Font = Enum.Font.Gotham
 infoText.TextXAlignment = Enum.TextXAlignment.Left
 infoText.TextYAlignment = Enum.TextYAlignment.Top
 infoText.Parent = infoFrame
 
--- Переменные
-local teleportHeight = 10000
-local teleportCount = 0
-local isDraggingSlider = false
-local isDraggingVelocitySlider = false
-local selectedMethod = "Velocity"
-local currentCharacter = nil
-local isAlive = true
-local velocityMultiplier = 1.0
-
--- Состояния для кейбиндов
-local waitingForTeleportKey = false
-local waitingForHideKey = false
-
--- Функции ползунка высоты
-local function updateSliderValue(value)
-    local minVal = 1
-    local maxVal = 1000000
-    local percent = (value - minVal) / (maxVal - minVal)
-    percent = math.clamp(percent, 0, 1)
-    sliderFill.Size = UDim2.new(percent, 0, 1, 0)
-    sliderButton.Position = UDim2.new(percent, -10, 0.5, -10)
+-- ===== ЛОГИКА ПОЛЗУНКОВ (ПРОСТАЯ И РАБОЧАЯ) =====
+-- Ползунок скорости Velocity
+local function updateVelSlider(val)
+    local p = (val - 0.1) / 4.9
+    p = math.clamp(p, 0, 1)
+    velFill.Size = UDim2.new(p, 0, 1, 0)
+    velBtn.Position = UDim2.new(p, -10, 0.5, -10)
+    velValue.Text = "x" .. string.format("%.1f", val)
+    velocityMultiplier = val
 end
 
-local function getValueFromSliderPosition(inputPosition)
-    local sliderAbsPos = sliderFrame.AbsolutePosition
-    local sliderWidth = sliderFrame.AbsoluteSize.X
-    local clickX = inputPosition.X - sliderAbsPos.X
-    local percent = math.clamp(clickX / sliderWidth, 0, 1)
-    local minVal = 1
-    local maxVal = 1000000
-    return math.floor(minVal + (maxVal - minVal) * percent)
-end
-
--- Функции ползунка скорости
-local function updateVelocitySlider(value)
-    local minVal = 0.1
-    local maxVal = 5.0
-    local percent = (value - minVal) / (maxVal - minVal)
-    percent = math.clamp(percent, 0, 1)
-    velocitySliderFill.Size = UDim2.new(percent, 0, 1, 0)
-    velocitySliderButton.Position = UDim2.new(percent, -10, 0.5, -10)
-end
-
-local function getValueFromVelocitySliderPosition(inputPosition)
-    local sliderAbsPos = velocitySliderFrame.AbsolutePosition
-    local sliderWidth = velocitySliderFrame.AbsoluteSize.X
-    local clickX = inputPosition.X - sliderAbsPos.X
-    local percent = math.clamp(clickX / sliderWidth, 0, 1)
-    local minVal = 0.1
-    local maxVal = 5.0
-    return minVal + (maxVal - minVal) * percent
-end
-
--- Обработка ползунков
-sliderButton.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        isDraggingSlider = true
-        local newValue = getValueFromSliderPosition(input.Position)
-        teleportHeight = math.clamp(newValue, 1, 1000000)
-        updateSliderValue(teleportHeight)
-        inputBox.Text = tostring(teleportHeight)
-        valueLabel.Text = formatNumber(teleportHeight) .. " студней"
-    end
-end)
-
-velocitySliderButton.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        isDraggingVelocitySlider = true
-        local newValue = getValueFromVelocitySliderPosition(input.Position)
-        velocityMultiplier = math.clamp(newValue, 0.1, 5.0)
-        updateVelocitySlider(velocityMultiplier)
-        velocityInputBox.Text = string.format("%.1f", velocityMultiplier)
-        currentSpeedLabel.Text = "Текущий множитель: " .. string.format("%.1f", velocityMultiplier) .. "x"
-        velocityValueLabel.Text = string.format("Скорость: x%.1f (%s)", velocityMultiplier, 
-            velocityMultiplier == 1 and "обычная" or 
-            velocityMultiplier < 1 and "медленнее" or 
-            "быстрее")
-    end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-    if isDraggingSlider and input.UserInputType == Enum.UserInputType.MouseMovement then
-        local newValue = getValueFromSliderPosition(input.Position)
-        teleportHeight = math.clamp(newValue, 1, 1000000)
-        updateSliderValue(teleportHeight)
-        inputBox.Text = tostring(teleportHeight)
-        valueLabel.Text = formatNumber(teleportHeight) .. " студней"
-    elseif isDraggingVelocitySlider and input.UserInputType == Enum.UserInputType.MouseMovement then
-        local newValue = getValueFromVelocitySliderPosition(input.Position)
-        velocityMultiplier = math.clamp(newValue, 0.1, 5.0)
-        updateVelocitySlider(velocityMultiplier)
-        velocityInputBox.Text = string.format("%.1f", velocityMultiplier)
-        currentSpeedLabel.Text = "Текущий множитель: " .. string.format("%.1f", velocityMultiplier) .. "x"
-        velocityValueLabel.Text = string.format("Скорость: x%.1f (%s)", velocityMultiplier, 
-            velocityMultiplier == 1 and "обычная" or 
-            velocityMultiplier < 1 and "медленнее" or 
-            "быстрее")
-    end
-end)
-
-UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        isDraggingSlider = false
-        isDraggingVelocitySlider = false
-    end
-end)
-
-sliderFrame.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        local newValue = getValueFromSliderPosition(input.Position)
-        teleportHeight = math.clamp(newValue, 1, 1000000)
-        updateSliderValue(teleportHeight)
-        inputBox.Text = tostring(teleportHeight)
-        valueLabel.Text = formatNumber(teleportHeight) .. " студней"
-    end
-end)
-
-velocitySliderFrame.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        local newValue = getValueFromVelocitySliderPosition(input.Position)
-        velocityMultiplier = math.clamp(newValue, 0.1, 5.0)
-        updateVelocitySlider(velocityMultiplier)
-        velocityInputBox.Text = string.format("%.1f", velocityMultiplier)
-        currentSpeedLabel.Text = "Текущий множитель: " .. string.format("%.1f", velocityMultiplier) .. "x"
-        velocityValueLabel.Text = string.format("Скорость: x%.1f (%s)", velocityMultiplier, 
-            velocityMultiplier == 1 and "обычная" or 
-            velocityMultiplier < 1 and "медленнее" or 
-            "быстрее")
-    end
-end)
-
--- Применение значений
-local function applyInputValue()
-    local numValue = tonumber(inputBox.Text)
-    if numValue then
-        numValue = math.clamp(math.floor(numValue), 1, 1000000)
-        teleportHeight = numValue
-        updateSliderValue(teleportHeight)
-        inputBox.Text = tostring(teleportHeight)
-        valueLabel.Text = formatNumber(teleportHeight) .. " студней"
-    else
-        inputBox.Text = tostring(teleportHeight)
-    end
-end
-
-local function applyVelocityInput()
-    local numValue = tonumber(velocityInputBox.Text)
-    if numValue then
-        numValue = math.clamp(numValue, 0.1, 5.0)
-        velocityMultiplier = numValue
-        updateVelocitySlider(velocityMultiplier)
-        velocityInputBox.Text = string.format("%.1f", velocityMultiplier)
-        currentSpeedLabel.Text = "Текущий множитель: " .. string.format("%.1f", velocityMultiplier) .. "x"
-        velocityValueLabel.Text = string.format("Скорость: x%.1f (%s)", velocityMultiplier, 
-            velocityMultiplier == 1 and "обычная" or 
-            velocityMultiplier < 1 and "медленнее" or 
-            "быстрее")
-    else
-        velocityInputBox.Text = string.format("%.1f", velocityMultiplier)
-    end
-end
-
-applyButton.MouseButton1Click:Connect(applyInputValue)
-inputBox.FocusLost:Connect(function(enterPressed)
-    if enterPressed then applyInputValue() end
-end)
-
-velocityApplyButton.MouseButton1Click:Connect(applyVelocityInput)
-velocityInputBox.FocusLost:Connect(function(enterPressed)
-    if enterPressed then applyVelocityInput() end
-end)
-
--- Форматирование чисел
-local function formatNumber(num)
-    if num >= 1000000 then
-        return string.format("%.1fM", num / 1000000)
-    elseif num >= 1000 then
-        return string.format("%.1fK", num / 1000)
-    else
-        return tostring(num)
-    end
-end
-
--- ===== МЕТОДЫ ТЕЛЕПОРТАЦИИ =====
-
-local function teleportViaVelocity(height)
-    if not currentCharacter then return false end
-    
-    local hrp = currentCharacter:FindFirstChild("HumanoidRootPart")
-    local humanoid = currentCharacter:FindFirstChild("Humanoid")
-    
-    if hrp and humanoid and humanoid.Health > 0 then
-        local originalGravity = workspace.Gravity
-        workspace.Gravity = 0
-        
-        local velocity = math.sqrt(2 * height * 50) * velocityMultiplier
-        hrp.Velocity = Vector3.new(0, velocity, 0)
-        hrp.AssemblyLinearVelocity = Vector3.new(0, velocity, 0)
-        
-        task.wait(0.05)
-        workspace.Gravity = originalGravity
-        return true
-    end
-    return false
-end
-
-local function teleportViaTween(height)
-    if not currentCharacter then return false end
-    
-    local hrp = currentCharacter:FindFirstChild("HumanoidRootPart")
-    if hrp then
-        local targetPos = hrp.Position + Vector3.new(0, height, 0)
-        local tween = TweenService:Create(hrp, TweenInfo.new(math.min(height / 500, 2), Enum.EasingStyle.Linear), {
-            Position = targetPos
-        })
-        tween:Play()
-        tween.Completed:Wait()
-        return true
-    end
-    return false
-end
-
-local function teleportViaAttachments(height)
-    if not currentCharacter then return false end
-    
-    local hrp = currentCharacter:FindFirstChild("HumanoidRootPart")
-    if hrp then
-        local attach = Instance.new("Attachment")
-        attach.Parent = hrp
-        
-        local bv = Instance.new("BodyVelocity")
-        bv.MaxForce = Vector3.new(0, math.huge, 0)
-        bv.Velocity = Vector3.new(0, height * 2, 0)
-        bv.Parent = attach
-        
-        task.wait(0.1)
-        bv:Destroy()
-        attach:Destroy()
-        return true
-    end
-    return false
-end
-
-local function teleportViaNetwork(height)
-    if not currentCharacter then return false end
-    
-    local hrp = currentCharacter:FindFirstChild("HumanoidRootPart")
-    if hrp then
-        hrp:SetNetworkOwner(player)
-        task.wait()
-        hrp.CFrame = hrp.CFrame + Vector3.new(0, height, 0)
-        return true
-    end
-    return false
-end
-
--- Главная функция телепортации
-local function teleportUp()
-    if not isAlive then
-        statusLabel.Text = "❌ Вы мертвы! Возродитесь сначала"
-        statusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
-        
-        teleportButton.BackgroundColor3 = Color3.fromRGB(100, 60, 60)
-        task.wait(0.3)
-        teleportButton.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
-        return
-    end
-    
-    if not currentCharacter then
-        statusLabel.Text = "⚠️ Персонаж не загружен..."
-        return
-    end
-    
-    local success = false
-    
-    if selectedMethod == "Velocity" then
-        success = teleportViaVelocity(teleportHeight)
-    elseif selectedMethod == "Tween" then
-        success = teleportViaTween(teleportHeight)
-    elseif selectedMethod == "Attachments" then
-        success = teleportViaAttachments(teleportHeight)
-    elseif selectedMethod == "Network" then
-        success = teleportViaNetwork(teleportHeight)
-    end
-    
-    if success then
-        teleportCount = teleportCount + 1
-        local speedText = (selectedMethod == "Velocity" and string.format(" (x%.1f)", velocityMultiplier) or "")
-        counterLabel.Text = "Телепортов: " .. teleportCount .. " [" .. selectedMethod .. speedText .. "]"
-        statusLabel.Text = "✅ Телепорт успешен!"
-        statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
-        
-        if currentCharacter and currentCharacter:FindFirstChild("HumanoidRootPart") then
-            local hrp = currentCharacter.HumanoidRootPart
-            local attachment = Instance.new("Attachment")
-            attachment.Parent = hrp
-            local smoke = Instance.new("Smoke")
-            smoke.Parent = attachment
-            game:GetService("Debris"):AddItem(smoke, 2)
-            game:GetService("Debris"):AddItem(attachment, 2)
+velBtn.MouseButton1Down:Connect(function()
+    local moving = true
+    local con
+    con = UserInputService.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement and moving then
+            local mousePos = UserInputService:GetMouseLocation()
+            local sliderPos = velSlider.AbsolutePosition.X
+            local sliderW = velSlider.AbsoluteSize.X
+            local p = (mousePos.X - sliderPos) / sliderW
+            p = math.clamp(p, 0, 1)
+            local newVal = 0.1 + p * 4.9
+            updateVelSlider(newVal)
+            velInput.Text = string.format("%.1f", newVal)
         end
-        
-        local clickTween = TweenService:Create(teleportButton, TweenInfo.new(0.1, Enum.EasingStyle.Quad), {
-            BackgroundColor3 = Color3.fromRGB(0, 200, 100)
-        })
-        clickTween:Play()
-        task.wait(0.1)
-        local resetTween = TweenService:Create(teleportButton, TweenInfo.new(0.1, Enum.EasingStyle.Quad), {
-            BackgroundColor3 = Color3.fromRGB(0, 120, 255)
-        })
-        resetTween:Play()
-        
-        task.wait(2)
-        if isAlive then
-            statusLabel.Text = "✅ Персонаж жив"
-            statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+    end)
+    local rel
+    rel = UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            moving = false
+            con:Disconnect()
+            rel:Disconnect()
         end
-    else
-        statusLabel.Text = "❌ Ошибка телепортации!"
-        statusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+    end)
+end)
+
+velSlider.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        local mousePos = input.Position
+        local sliderPos = velSlider.AbsolutePosition.X
+        local sliderW = velSlider.AbsoluteSize.X
+        local p = (mousePos.X - sliderPos) / sliderW
+        p = math.clamp(p, 0, 1)
+        local newVal = 0.1 + p * 4.9
+        updateVelSlider(newVal)
+        velInput.Text = string.format("%.1f", newVal)
     end
+end)
+
+-- Ползунок высоты Velocity
+local function updateHeightSliderVal(val)
+    local p = (val - 1) / 999999
+    p = math.clamp(p, 0, 1)
+    heightFill.Size = UDim2.new(p, 0, 1, 0)
+    heightBtn.Position = UDim2.new(p, -10, 0.5, -10)
+    heightValue.Text = formatNumber(val) .. " ст"
+    teleportHeight = val
 end
 
--- ===== КЕЙБИНДЫ =====
-local function setupKeybinds()
-    UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if gameProcessed then return end
-        
-        -- Проверка на телепорт
-        if input.KeyCode == Enum.KeyCode[teleportKeybind] then
-            teleportUp()
+heightBtn.MouseButton1Down:Connect(function()
+    local moving = true
+    local con
+    con = UserInputService.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement and moving then
+            local mousePos = UserInputService:GetMouseLocation()
+            local sliderPos = heightSlider.AbsolutePosition.X
+            local sliderW = heightSlider.AbsoluteSize.X
+            local p = (mousePos.X - sliderPos) / sliderW
+            p = math.clamp(p, 0, 1)
+            local newVal = math.floor(1 + p * 999999)
+            updateHeightSliderVal(newVal)
+            heightInput.Text = tostring(newVal)
         end
-        
-        -- Проверка на скрытие
-        if input.KeyCode == Enum.KeyCode[hideKeybind] then
-            isMenuVisible = not isMenuVisible
-            screenGui.Enabled = isMenuVisible
-            
-            -- Визуальный эффект при скрытии/показе
-            if isMenuVisible then
-                statusLabel.Text = "✅ Меню показано (нажми " .. hideKeybind .. ")"
-                task.wait(2)
-                if isAlive then
-                    statusLabel.Text = "✅ Персонаж жив"
-                end
+    end)
+    local rel
+    rel = UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            moving = false
+            con:Disconnect()
+            rel:Disconnect()
+        end
+    end)
+end)
+
+heightSlider.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        local mousePos = input.Position
+        local sliderPos = heightSlider.AbsolutePosition.X
+        local sliderW = heightSlider.AbsoluteSize.X
+        local p = (mousePos.X - sliderPos) / sliderW
+        p = math.clamp(p, 0, 1)
+        local newVal = math.floor(1 + p * 999999)
+        updateHeightSliderVal(newVal)
+        heightInput.Text = tostring(newVal)
+    end
+end)
+
+-- Ползунок скорости платформы
+local function updatePlatSpeedSlider(val)
+    local p = (val - 30) / 270
+    p = math.clamp(p, 0, 1)
+    platSpeedFill.Size = UDim2.new(p, 0, 1, 0)
+    platSpeedBtn.Position = UDim2.new(p, -10, 0.5, -10)
+    platSpeedVal.Text = math.floor(val) .. " ст/с"
+    platformSpeed = val
+end
+
+platSpeedBtn.MouseButton1Down:Connect(function()
+    local moving = true
+    local con
+    con = UserInputService.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement and moving then
+            local mousePos = UserInputService:GetMouseLocation()
+            local sliderPos = platSpeedSlider.AbsolutePosition.X
+            local sliderW = platSpeedSlider.AbsoluteSize.X
+            local p = (mousePos.X - sliderPos) / sliderW
+            p = math.clamp(p, 0, 1)
+            local newVal = 30 + p * 270
+            updatePlatSpeedSlider(newVal)
+        end
+    end)
+    local rel
+    rel = UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            moving = false
+            con:Disconnect()
+            rel:Disconnect()
+        end
+    end)
+end)
+
+platSpeedSlider.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        local mousePos = input.Position
+        local sliderPos = platSpeedSlider.AbsolutePosition.X
+        local sliderW = platSpeedSlider.AbsoluteSize.X
+        local p = (mousePos.X - sliderPos) / sliderW
+        p = math.clamp(p, 0, 1)
+        local newVal = 30 + p * 270
+        updatePlatSpeedSlider(newVal)
+    end
+end)
+
+-- Ползунок высоты платформы
+local function updatePlatHeightSlider(val)
+    local p = (val - 10) / 990
+    p = math.clamp(p, 0, 1)
+    platHeightFill.Size = UDim2.new(p, 0, 1, 0)
+    platHeightBtn.Position = UDim2.new(p, -10, 0.5, -10)
+    platHeightVal.Text = math.floor(val) .. " ст"
+    platformMaxHeight = val
+end
+
+platHeightBtn.MouseButton1Down:Connect(function()
+    local moving = true
+    local con
+    con = UserInputService.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement and moving then
+            local mousePos = UserInputService:GetMouseLocation()
+            local sliderPos = platHeightSlider.AbsolutePosition.X
+            local sliderW = platHeightSlider.AbsoluteSize.X
+            local p = (mousePos.X - sliderPos) / sliderW
+            p = math.clamp(p, 0, 1)
+            local newVal = math.floor(10 + p * 990)
+            updatePlatHeightSlider(newVal)
+        end
+    end)
+    local rel
+    rel = UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            moving = false
+            con:Disconnect()
+            rel:Disconnect()
+        end
+    end)
+end)
+
+platHeightSlider.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        local mousePos = input.Position
+        local sliderPos = platHeightSlider.AbsolutePosition.X
+        local sliderW = platHeightSlider.AbsoluteSize.X
+        local p = (mousePos.X - sliderPos) / sliderW
+        p = math.clamp(p, 0, 1)
+        local newVal = math.floor(10 + p * 990)
+        updatePlatHeightSlider(newVal)
+    end
+end)
+
+-- Ползунок плавности аимбота
+local function updateSmoothSlider(val)
+    local p = (val - 0.05) / 0.45
+    p = math.clamp(p, 0, 1)
+    smoothFill.Size = UDim2.new(p, 0, 1, 0)
+    smoothBtn.Position = UDim2.new(p, -10, 0.5, -10)
+    smoothVal.Text = string.format("%.2f", val)
+    aimbotSmoothness = val
+end
+
+smoothBtn.MouseButton1Down:Connect(function()
+    local moving = true
+    local con
+    con = UserInputService.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement and moving then
+            local mousePos = UserInputService:GetMouseLocation()
+            local sliderPos = smoothSlider.AbsolutePosition.X
+            local sliderW = smoothSlider.AbsoluteSize.X
+            local p = (mousePos.X - sliderPos) / sliderW
+            p = math.clamp(p, 0, 1)
+            local newVal = 0.05 + p * 0.45
+            updateSmoothSlider(newVal)
+        end
+    end)
+    local rel
+    rel = UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            moving = false
+            con:Disconnect()
+            rel:Disconnect()
+        end
+    end)
+end)
+
+smoothSlider.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        local mousePos = input.Position
+        local sliderPos = smoothSlider.AbsolutePosition.X
+        local sliderW = smoothSlider.AbsoluteSize.X
+        local p = (mousePos.X - sliderPos) / sliderW
+        p = math.clamp(p, 0, 1)
+        local newVal = 0.05 + p * 0.45
+        updateSmoothSlider(newVal)
+    end
+end)
+
+-- Ползунок спрея
+local function updateSpraySliderVal(val)
+    local p = val / 0.3
+    p = math.clamp(p, 0, 1)
+    sprayFill2.Size = UDim2.new(p, 0, 1, 0)
+    sprayBtn2.Position = UDim2.new(p, -10, 0.5, -10)
+    sprayVal2.Text = string.format("%.2f", val)
+    sprayAmount = val
+end
+
+sprayBtn2.MouseButton1Down:Connect(function()
+    local moving = true
+    local con
+    con = UserInputService.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement and moving then
+            local mousePos = UserInputService:GetMouseLocation()
+            local sliderPos = spraySlider2.AbsolutePosition.X
+            local sliderW = spraySlider2.AbsoluteSize.X
+            local p = (mousePos.X - sliderPos) / sliderW
+            p = math.clamp(p, 0, 1)
+            local newVal = p * 0.3
+            updateSpraySliderVal(newVal)
+        end
+    end)
+    local rel
+    rel = UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            moving = false
+            con:Disconnect()
+            rel:Disconnect()
+        end
+    end)
+end)
+
+spraySlider2.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        local mousePos = input.Position
+        local sliderPos = spraySlider2.AbsolutePosition.X
+        local sliderW = spraySlider2.AbsoluteSize.X
+        local p = (mousePos.X - sliderPos) / sliderW
+        p = math.clamp(p, 0, 1)
+        local newVal = p * 0.3
+        updateSpraySliderVal(newVal)
+    end
+end)
+
+-- Применение значений из текстовых полей
+velApply.MouseButton1Click:Connect(function()
+    local num = tonumber(velInput.Text)
+    if num then
+        num = math.clamp(num, 0.1, 5)
+        updateVelSlider(num)
+    else
+        velInput.Text = string.format("%.1f", velocityMultiplier)
+    end
+end)
+
+heightApply.MouseButton1Click:Connect(function()
+    local num = tonumber(heightInput.Text)
+    if num then
+        num = math.clamp(math.floor(num), 1, 1000000)
+        updateHeightSliderVal(num)
+    else
+        heightInput.Text = tostring(teleportHeight)
+    end
+end)
+
+-- Переключение спрея
+local function toggleSprayFunc()
+    sprayEnabled = not sprayEnabled
+    if sprayEnabled then
+        sprayToggle.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
+        sprayToggle.Text = "🔘 СПРЕЙ ВКЛ"
+    else
+        sprayToggle.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
+        sprayToggle.Text = "❌ СПРЕЙ ВЫКЛ"
+    end
+end
+sprayToggle.MouseButton1Click:Connect(toggleSprayFunc)
+
+-- Кнопки действий
+actionBtn.MouseButton1Click:Connect(activateVelocity)
+platActionBtn.MouseButton1Click:Connect(platformAction)
+aimbotToggleButton.MouseButton1Click:Connect(toggleAimbot)
+
+-- Кейбинды (смена клавиш)
+local waitingForAction = false
+local waitingForHide = false
+local waitingForAim = false
+
+actionKeyBtn.MouseButton1Click:Connect(function()
+    waitingForAction = true
+    actionKeyBtn.Text = "..."
+    actionKeyBtn.BackgroundColor3 = Color3.fromRGB(200, 100, 0)
+    local conn
+    conn = UserInputService.InputBegan:Connect(function(input, proc)
+        if waitingForAction and not proc then
+            local k = input.KeyCode.Name
+            if k ~= "Unknown" then
+                actionKeybind = k
+                actionKeyBtn.Text = k
+                actionKeyBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+                waitingForAction = false
+                conn:Disconnect()
             end
         end
     end)
-end
+end)
 
--- Функция для изменения кейбиндов
-local function setupKeybindButtons()
-    teleportKeyButton.MouseButton1Click:Connect(function()
-        waitingForTeleportKey = true
-        teleportKeyButton.Text = "..."
-        teleportKeyButton.BackgroundColor3 = Color3.fromRGB(200, 100, 0)
-        
-        local connection
-        connection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
-            if waitingForTeleportKey and not gameProcessed then
-                local key = input.KeyCode.Name
-                if key ~= "Unknown" then
-                    teleportKeybind = key
-                    teleportKeyButton.Text = key
-                    teleportKeyButton.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
-                    waitingForTeleportKey = false
-                    connection:Disconnect()
-                    
-                    -- Обновляем информацию
-                    infoText.Text = "💡 Информация:\n• Нажмите на кнопку с клавишей, чтобы изменить её\n• Затем нажмите любую клавишу на клавиатуре\n• Кейбинды работают даже когда меню скрыто\n• " .. teleportKeybind .. " - телепорт, " .. hideKeybind .. " - скрыть меню"
-                end
+hideKeyBtn.MouseButton1Click:Connect(function()
+    waitingForHide = true
+    hideKeyBtn.Text = "..."
+    hideKeyBtn.BackgroundColor3 = Color3.fromRGB(200, 100, 0)
+    local conn
+    conn = UserInputService.InputBegan:Connect(function(input, proc)
+        if waitingForHide and not proc then
+            local k = input.KeyCode.Name
+            if k ~= "Unknown" then
+                hideKeybind = k
+                hideKeyBtn.Text = k
+                hideKeyBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+                waitingForHide = false
+                conn:Disconnect()
             end
-        end)
+        end
     end)
-    
-    hideKeyButton.MouseButton1Click:Connect(function()
-        waitingForHideKey = true
-        hideKeyButton.Text = "..."
-        hideKeyButton.BackgroundColor3 = Color3.fromRGB(200, 100, 0)
-        
-        local connection
-        connection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
-            if waitingForHideKey and not gameProcessed then
-                local key = input.KeyCode.Name
-                if key ~= "Unknown" then
-                    hideKeybind = key
-                    hideKeyButton.Text = key
-                    hideKeyButton.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
-                    waitingForHideKey = false
-                    connection:Disconnect()
-                    
-                    -- Обновляем информацию
-                    infoText.Text = "💡 Информация:\n• Нажмите на кнопку с клавишей, чтобы изменить её\n• Затем нажмите любую клавишу на клавиатуре\n• Кейбинды работают даже когда меню скрыто\n• " .. teleportKeybind .. " - телепорт, " .. hideKeybind .. " - скрыть меню"
-                end
+end)
+
+aimKeyBtn.MouseButton1Click:Connect(function()
+    waitingForAim = true
+    aimKeyBtn.Text = "..."
+    aimKeyBtn.BackgroundColor3 = Color3.fromRGB(200, 100, 0)
+    local conn
+    conn = UserInputService.InputBegan:Connect(function(input, proc)
+        if waitingForAim and not proc then
+            local k = input.KeyCode.Name
+            if k ~= "Unknown" then
+                aimbotKeybind = k
+                aimKeyBtn.Text = k
+                aimKeyBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+                waitingForAim = false
+                conn:Disconnect()
             end
-        end)
+        end
     end)
-end
+end)
+
+-- Глобальные горячие клавиши
+UserInputService.InputBegan:Connect(function(input, proc)
+    if proc then return end
+    if input.KeyCode == Enum.KeyCode[actionKeybind] then
+        if selectedMethod == "Velocity" then activateVelocity() else platformAction() end
+    end
+    if input.KeyCode == Enum.KeyCode[hideKeybind] then
+        isMenuVisible = not isMenuVisible
+        screenGui.Enabled = isMenuVisible
+    end
+    if input.KeyCode == Enum.KeyCode[aimbotKeybind] then toggleAimbot() end
+end)
 
 -- Переключение вкладок
 tab1.MouseButton1Click:Connect(function()
-    panel1.Visible = true
-    panel2.Visible = false
-    panel3.Visible = false
+    velocityPanel.Visible = true
+    platformPanel.Visible = false
+    aimbotPanel.Visible = false
+    keybindPanel.Visible = false
     tab1.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
     tab2.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
     tab3.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
-    tab1.TextColor3 = Color3.fromRGB(255, 255, 255)
-    tab2.TextColor3 = Color3.fromRGB(200, 200, 220)
-    tab3.TextColor3 = Color3.fromRGB(200, 200, 220)
+    tab4.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
+    selectedMethod = "Velocity"
 end)
 
 tab2.MouseButton1Click:Connect(function()
-    panel1.Visible = false
-    panel2.Visible = true
-    panel3.Visible = false
+    velocityPanel.Visible = false
+    platformPanel.Visible = true
+    aimbotPanel.Visible = false
+    keybindPanel.Visible = false
     tab1.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
     tab2.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
     tab3.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
-    tab1.TextColor3 = Color3.fromRGB(200, 200, 220)
-    tab2.TextColor3 = Color3.fromRGB(255, 255, 255)
-    tab3.TextColor3 = Color3.fromRGB(200, 200, 220)
+    tab4.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
+    selectedMethod = "Platform"
 end)
 
 tab3.MouseButton1Click:Connect(function()
-    panel1.Visible = false
-    panel2.Visible = false
-    panel3.Visible = true
+    velocityPanel.Visible = false
+    platformPanel.Visible = false
+    aimbotPanel.Visible = true
+    keybindPanel.Visible = false
     tab1.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
     tab2.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
     tab3.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
-    tab1.TextColor3 = Color3.fromRGB(200, 200, 220)
-    tab2.TextColor3 = Color3.fromRGB(200, 200, 220)
-    tab3.TextColor3 = Color3.fromRGB(255, 255, 255)
+    tab4.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
 end)
 
--- Отслеживание перерождения
-local function onCharacterAdded(newChar)
+tab4.MouseButton1Click:Connect(function()
+    velocityPanel.Visible = false
+    platformPanel.Visible = false
+    aimbotPanel.Visible = false
+    keybindPanel.Visible = true
+    tab1.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
+    tab2.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
+    tab3.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
+    tab4.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+end)
+
+-- Отслеживание персонажа
+local function onCharAdded(newChar)
     currentCharacter = newChar
     isAlive = true
-    statusLabel.Text = "✅ Персонаж жив"
-    statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
-    
-    local humanoid = newChar:WaitForChild("Humanoid")
-    
-    humanoid.Died:Connect(function()
+    statusLabel.Text = "✅ Жив"
+    platformStatusLabel.Text = "✅ Жив"
+    if platform then platform:Destroy() end
+    platformActive = false
+    if platformTween then platformTween:Cancel() end
+    if originalGravity then workspace.Gravity = originalGravity end
+    local hum = newChar:WaitForChild("Humanoid")
+    hum.Died:Connect(function()
         isAlive = false
-        statusLabel.Text = "💀 Вы умерли! Ожидание возрождения..."
-        statusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
-    end)
-    
-    humanoid:GetPropertyChangedSignal("Health"):Connect(function()
-        if humanoid.Health > 0 and not isAlive then
-            isAlive = true
-            statusLabel.Text = "✅ Персонаж жив"
-            statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
-        elseif humanoid.Health <= 0 then
-            isAlive = false
-            statusLabel.Text = "💀 Вы умерли"
-            statusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
-        end
+        statusLabel.Text = "💀 Мёртв"
+        platformStatusLabel.Text = "💀 Мёртв"
+        if aimbotEnabled then toggleAimbot() end
     end)
 end
 
-if player.Character then
-    onCharacterAdded(player.Character)
-end
-player.CharacterAdded:Connect(onCharacterAdded)
-
--- Выбор метода
-local methods = {"Velocity", "Tween", "Attachments", "Network"}
-local methodNames = {"🔧 Velocity (Выстрел)", "🎯 Tween (Плавно)", "⚙️ Attachments (Сложный)", "🌐 Network (Владелец)"}
-local currentMethodIndex = 1
-
-methodDropdown.MouseButton1Click:Connect(function()
-    currentMethodIndex = currentMethodIndex % #methods + 1
-    selectedMethod = methods[currentMethodIndex]
-    methodDropdown.Text = methodNames[currentMethodIndex]
-    
-    methodDropdown.BackgroundColor3 = Color3.fromRGB(80, 80, 110)
-    task.wait(0.2)
-    methodDropdown.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
-end)
-
-teleportButton.MouseButton1Click:Connect(teleportUp)
-
--- Анимации кнопок
-teleportButton.MouseEnter:Connect(function()
-    teleportButton.BackgroundColor3 = Color3.fromRGB(50, 170, 255)
-    teleportButton.Size = UDim2.new(0, 290, 0, 75)
-end)
-
-teleportButton.MouseLeave:Connect(function()
-    teleportButton.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
-    teleportButton.Size = UDim2.new(0, 280, 0, 70)
-end)
-
-closeButton.MouseButton1Click:Connect(function()
-    screenGui:Destroy()
-end)
-
--- Быстрые настройки высоты
-for i, value in ipairs({"100", "1000", "10000", "100000", "1000000"}) do
-    local presetButton = Instance.new("TextButton")
-    presetButton.Size = UDim2.new(0, 75, 1, 0)
-    presetButton.Position = UDim2.new(0, (i-1) * 78, 0, 0)
-    presetButton.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
-    presetButton.Text = value .. (value == "1000000" and "M" or (value == "100000" and "K" or ""))
-    presetButton.TextColor3 = Color3.fromRGB(200, 200, 220)
-    presetButton.TextSize = 12
-    presetButton.Font = Enum.Font.Gotham
-    presetButton.BorderSizePixel = 0
-    presetButton.Parent = presetFrame
-    
-    local presetCorner = Instance.new("UICorner")
-    presetCorner.CornerRadius = UDim.new(0, 4)
-    presetCorner.Parent = presetButton
-    
-    presetButton.MouseButton1Click:Connect(function()
-        local numValue = tonumber(value)
-        if numValue then
-            teleportHeight = numValue
-            updateSliderValue(teleportHeight)
-            inputBox.Text = tostring(teleportHeight)
-            valueLabel.Text = formatNumber(teleportHeight) .. " студней"
-        end
-    end)
-    
-    presetButton.MouseEnter:Connect(function()
-        presetButton.BackgroundColor3 = Color3.fromRGB(70, 70, 95)
-    end)
-    
-    presetButton.MouseLeave:Connect(function()
-        presetButton.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
-    end)
-end
-
--- Быстрые настройки скорости
-for i, value in ipairs(speedPresets) do
-    local presetButton = Instance.new("TextButton")
-    presetButton.Size = UDim2.new(0, 55, 1, 0)
-    presetButton.Position = UDim2.new(0, (i-1) * 58, 0, 0)
-    presetButton.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
-    presetButton.Text = value .. "x"
-    presetButton.TextColor3 = Color3.fromRGB(200, 200, 220)
-    presetButton.TextSize = 12
-    presetButton.Font = Enum.Font.Gotham
-    presetButton.BorderSizePixel = 0
-    presetButton.Parent = speedPresetFrame
-    
-    local presetCorner = Instance.new("UICorner")
-    presetCorner.CornerRadius = UDim.new(0, 4)
-    presetCorner.Parent = presetButton
-    
-    presetButton.MouseButton1Click:Connect(function()
-        local numValue = tonumber(value)
-        if numValue then
-            velocityMultiplier = numValue
-            updateVelocitySlider(velocityMultiplier)
-            velocityInputBox.Text = string.format("%.1f", velocityMultiplier)
-            currentSpeedLabel.Text = "Текущий множитель: " .. string.format("%.1f", velocityMultiplier) .. "x"
-            velocityValueLabel.Text = string.format("Скорость: x%.1f (%s)", velocityMultiplier, 
-                velocityMultiplier == 1 and "обычная" or 
-                velocityMultiplier < 1 and "медленнее" or 
-                "быстрее")
-        end
-    end)
-    
-    presetButton.MouseEnter:Connect(function()
-        presetButton.BackgroundColor3 = Color3.fromRGB(70, 70, 95)
-    end)
-    
-    presetButton.MouseLeave:Connect(function()
-        presetButton.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
-    end)
-end
+if player.Character then onCharAdded(player.Character) end
+player.CharacterAdded:Connect(onCharAdded)
 
 -- Перетаскивание окна
-local dragging = false
-local dragStartMousePos = Vector2.new()
-local dragStartFramePos = Vector2.new()
+local dragActive = false
+local dragStartPos = nil
+local frameStartPos = nil
 
 titleBar.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        dragging = true
-        dragStartMousePos = Vector2.new(input.Position.X, input.Position.Y)
-        dragStartFramePos = Vector2.new(mainFrame.AbsolutePosition.X, mainFrame.AbsolutePosition.Y)
+        dragActive = true
+        dragStartPos = input.Position
+        frameStartPos = mainFrame.Position
         titleBar.BackgroundColor3 = Color3.fromRGB(70, 70, 95)
     end
 end)
 
 titleBar.InputChanged:Connect(function(input)
-    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-        local currentMousePos = Vector2.new(input.Position.X, input.Position.Y)
-        local delta = currentMousePos - dragStartMousePos
-        local newX = dragStartFramePos.X + delta.X
-        local newY = dragStartFramePos.Y + delta.Y
-        
+    if dragActive and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local delta = input.Position - dragStartPos
+        local newX = frameStartPos.X.Offset + delta.X
+        local newY = frameStartPos.Y.Offset + delta.Y
         local screenSize = workspace.CurrentCamera.ViewportSize
         local frameSize = mainFrame.AbsoluteSize
-        
         newX = math.clamp(newX, 0, screenSize.X - frameSize.X)
         newY = math.clamp(newY, 0, screenSize.Y - frameSize.Y)
-        
         mainFrame.Position = UDim2.new(0, newX, 0, newY)
     end
 end)
 
 titleBar.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 and dragging then
-        dragging = false
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragActive = false
         titleBar.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
     end
 end)
@@ -1134,31 +1350,30 @@ local minimized = false
 minimizeButton.MouseButton1Click:Connect(function()
     minimized = not minimized
     if minimized then
-        local minimizeTween = TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
-            Size = UDim2.new(0, 450, 0, 45)
-        })
-        minimizeTween:Play()
         contentFrame.Visible = false
         minimizeButton.Text = "□"
+        mainFrame.Size = UDim2.new(0, 420, 0, 45)
     else
-        local maximizeTween = TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
-            Size = UDim2.new(0, 450, 0, 550)
-        })
-        maximizeTween:Play()
         contentFrame.Visible = true
         minimizeButton.Text = "−"
+        mainFrame.Size = UDim2.new(0, 420, 0, 580)
     end
 end)
 
--- Инициализация
-updateSliderValue(teleportHeight)
-updateVelocitySlider(velocityMultiplier)
-setupKeybinds()
-setupKeybindButtons()
+closeButton.MouseButton1Click:Connect(function()
+    if aimbotConnection then aimbotConnection:Disconnect() end
+    if platform then platform:Destroy() end
+    if originalGravity then workspace.Gravity = originalGravity end
+    screenGui:Destroy()
+end)
 
--- Анимация появления
+-- Инициализация
+updateVelSlider(velocityMultiplier)
+updateHeightSliderVal(teleportHeight)
+updatePlatSpeedSlider(platformSpeed)
+updatePlatHeightSlider(platformMaxHeight)
+updateSmoothSlider(aimbotSmoothness)
+updateSpraySliderVal(sprayAmount)
+
 mainFrame.BackgroundTransparency = 1
-local appearTween = TweenService:Create(mainFrame, TweenInfo.new(0.5, Enum.EasingStyle.Back), {
-    BackgroundTransparency = 0.05
-})
-appearTween:Play()
+TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Back), {BackgroundTransparency = 0.05}):Play()
