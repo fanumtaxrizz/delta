@@ -1,4 +1,4 @@
--- Velocity + БЫСТРАЯ ПЛАТФОРМА + АИМБОТ + КЕЙБИНДЫ (БЕЗ ПОДКИДЫВАНИЯ)
+-- Velocity + БЫСТРАЯ ПЛАТФОРМА + АИМБОТ + КЕЙБИНДЫ (ИСПРАВЛЕНЫ ПОЛЗУНКИ)
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
@@ -9,9 +9,9 @@ local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
 
 -- Переменные для кейбиндов
-local actionKeybind = "T"      -- Клавиша для активации метода
-local hideKeybind = "H"        -- Клавиша для скрытия меню
-local aimbotKeybind = "C"      -- Клавиша для переключения аимбота
+local actionKeybind = "T"
+local hideKeybind = "H"
+local aimbotKeybind = "C"
 local isMenuVisible = true
 local aimbotEnabled = false
 
@@ -36,7 +36,7 @@ local selectedMethod = "Platform"
 local platformTween = nil
 local platformRenderConnection = nil
 local platformActive = false
-local originalGravity = nil -- Сохраняем оригинальную гравитацию
+local originalGravity = nil
 
 -- Переменные для аимбота (активные)
 local aimbotConnection = nil
@@ -163,7 +163,7 @@ local function teleportViaVelocity()
     local humanoid = currentCharacter:FindFirstChild("Humanoid")
     
     if hrp and humanoid and humanoid.Health > 0 then
-        local originalGravity = workspace.Gravity
+        local grav = workspace.Gravity
         workspace.Gravity = 0
         
         local velocity = math.sqrt(2 * teleportHeight * 50) * velocityMultiplier
@@ -171,7 +171,7 @@ local function teleportViaVelocity()
         hrp.AssemblyLinearVelocity = Vector3.new(0, velocity, 0)
         
         task.wait(0.05)
-        workspace.Gravity = originalGravity
+        workspace.Gravity = grav
         return true
     end
     return false
@@ -207,7 +207,7 @@ local function activateVelocity()
     end
 end
 
--- ===== ФУНКЦИИ ПЛАТФОРМЫ (БЕЗ ПОДКИДЫВАНИЯ) =====
+-- ===== ФУНКЦИИ ПЛАТФОРМЫ =====
 local function createPlatform()
     if not currentCharacter then return nil end
     
@@ -240,7 +240,6 @@ local function platformAction()
     end
     
     if platformActive then
-        -- Удаляем платформу (персонаж ОСТАЁТСЯ на месте, НЕ ПОДКИДЫВАЕТ)
         if platform then
             platform:Destroy()
             platform = nil
@@ -254,8 +253,6 @@ local function platformAction()
             platformRenderConnection = nil
         end
         platformActive = false
-        
-        -- Включаем гравитацию обратно если была отключена
         if originalGravity then
             workspace.Gravity = originalGravity
             originalGravity = nil
@@ -269,12 +266,9 @@ local function platformAction()
             platformStatusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
         end
     else
-        -- Создаём новую платформу
         platform = createPlatform()
         if platform then
             platformActive = true
-            
-            -- Отключаем гравитацию чтобы не падать
             originalGravity = workspace.Gravity
             workspace.Gravity = 0
             
@@ -304,7 +298,6 @@ local function platformAction()
                         platformRenderConnection:Disconnect()
                         platformRenderConnection = nil
                     end
-                    -- Включаем гравитацию обратно
                     if originalGravity then
                         workspace.Gravity = originalGravity
                         originalGravity = nil
@@ -323,7 +316,360 @@ local function platformAction()
     end
 end
 
--- ===== СОЗДАНИЕ GUI =====
+-- ===== ФУНКЦИИ ПОЛЗУНКОВ =====
+local function updateHeightSlider(value)
+    local minVal = 1
+    local maxVal = 1000000
+    local percent = (value - minVal) / (maxVal - minVal)
+    percent = math.clamp(percent, 0, 1)
+    heightSliderFill.Size = UDim2.new(percent, 0, 1, 0)
+    heightSliderButton.Position = UDim2.new(percent, -10, 0.5, -10)
+    heightValueLabel.Text = formatNumber(value) .. " студней"
+end
+
+local function updateVelocitySlider(value)
+    local minVal = 0.1
+    local maxVal = 5.0
+    local percent = (value - minVal) / (maxVal - minVal)
+    percent = math.clamp(percent, 0, 1)
+    velocitySliderFill.Size = UDim2.new(percent, 0, 1, 0)
+    velocitySliderButton.Position = UDim2.new(percent, -10, 0.5, -10)
+    velocityValueLabel.Text = "Множитель: x" .. string.format("%.1f", value)
+end
+
+local function updatePlatformSpeedSlider(value)
+    local minVal = 30
+    local maxVal = 300
+    local percent = (value - minVal) / (maxVal - minVal)
+    percent = math.clamp(percent, 0, 1)
+    platformSpeedSliderFill.Size = UDim2.new(percent, 0, 1, 0)
+    platformSpeedSliderButton.Position = UDim2.new(percent, -10, 0.5, -10)
+    platformSpeedValueLabel.Text = math.floor(value) .. " ст/с"
+    platformSpeed = value
+end
+
+local function updatePlatformHeightSlider(value)
+    local minVal = 10
+    local maxVal = 1000
+    local percent = (value - minVal) / (maxVal - minVal)
+    percent = math.clamp(percent, 0, 1)
+    platformHeightSliderFill.Size = UDim2.new(percent, 0, 1, 0)
+    platformHeightSliderButton.Position = UDim2.new(percent, -10, 0.5, -10)
+    platformHeightValueLabel.Text = math.floor(value) .. " ст"
+    platformMaxHeight = value
+end
+
+local function updateSmoothnessSlider(value)
+    local minVal = 0.05
+    local maxVal = 0.5
+    local percent = (value - minVal) / (maxVal - minVal)
+    percent = math.clamp(percent, 0, 1)
+    smoothnessSliderFill.Size = UDim2.new(percent, 0, 1, 0)
+    smoothnessSliderButton.Position = UDim2.new(percent, -10, 0.5, -10)
+    smoothnessValueLabel.Text = string.format("%.2f", value)
+    aimbotSmoothness = value
+end
+
+local function updateSpraySlider(value)
+    local minVal = 0
+    local maxVal = 0.3
+    local percent = (value - minVal) / (maxVal - minVal)
+    percent = math.clamp(percent, 0, 1)
+    spraySliderFill.Size = UDim2.new(percent, 0, 1, 0)
+    spraySliderButton.Position = UDim2.new(percent, -10, 0.5, -10)
+    sprayValueLabel.Text = string.format("%.2f", value)
+    sprayAmount = value
+end
+
+-- Обработчики ползунков (ИСПРАВЛЕНЫ)
+local isDraggingHeight = false
+local isDraggingVelocity = false
+local isDraggingPlatformSpeed = false
+local isDraggingPlatformHeight = false
+local isDraggingSmoothness = false
+local isDraggingSpray = false
+
+-- Ползунок высоты Velocity
+heightSliderButton.MouseButton1Click:Connect(function()
+    -- Пустая функция чтобы кнопка не мешала
+end)
+
+heightSliderButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isDraggingHeight = true
+        local mousePos = input.Position
+        local sliderPos = heightSliderFrame.AbsolutePosition
+        local sliderSize = heightSliderFrame.AbsoluteSize
+        local percent = (mousePos.X - sliderPos.X) / sliderSize.X
+        percent = math.clamp(percent, 0, 1)
+        teleportHeight = math.floor(percent * 1000000)
+        if teleportHeight < 1 then teleportHeight = 1 end
+        updateHeightSlider(teleportHeight)
+        heightInputBox.Text = tostring(teleportHeight)
+    end
+end)
+
+-- Ползунок множителя Velocity
+velocitySliderButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isDraggingVelocity = true
+        local mousePos = input.Position
+        local sliderPos = velocitySliderFrame.AbsolutePosition
+        local sliderSize = velocitySliderFrame.AbsoluteSize
+        local percent = (mousePos.X - sliderPos.X) / sliderSize.X
+        percent = math.clamp(percent, 0, 1)
+        velocityMultiplier = percent * 5
+        if velocityMultiplier < 0.1 then velocityMultiplier = 0.1 end
+        updateVelocitySlider(velocityMultiplier)
+        velocityInputBox.Text = string.format("%.1f", velocityMultiplier)
+    end
+end)
+
+-- Ползунок скорости платформы
+platformSpeedSliderButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isDraggingPlatformSpeed = true
+        local mousePos = input.Position
+        local sliderPos = platformSpeedSliderFrame.AbsolutePosition
+        local sliderSize = platformSpeedSliderFrame.AbsoluteSize
+        local percent = (mousePos.X - sliderPos.X) / sliderSize.X
+        percent = math.clamp(percent, 0, 1)
+        platformSpeed = percent * 270 + 30
+        updatePlatformSpeedSlider(platformSpeed)
+    end
+end)
+
+-- Ползунок высоты платформы
+platformHeightSliderButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isDraggingPlatformHeight = true
+        local mousePos = input.Position
+        local sliderPos = platformHeightSliderFrame.AbsolutePosition
+        local sliderSize = platformHeightSliderFrame.AbsoluteSize
+        local percent = (mousePos.X - sliderPos.X) / sliderSize.X
+        percent = math.clamp(percent, 0, 1)
+        platformMaxHeight = math.floor(percent * 990 + 10)
+        updatePlatformHeightSlider(platformMaxHeight)
+    end
+end)
+
+-- Ползунок плавности аимбота
+smoothnessSliderButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isDraggingSmoothness = true
+        local mousePos = input.Position
+        local sliderPos = smoothnessSliderFrame.AbsolutePosition
+        local sliderSize = smoothnessSliderFrame.AbsoluteSize
+        local percent = (mousePos.X - sliderPos.X) / sliderSize.X
+        percent = math.clamp(percent, 0, 1)
+        aimbotSmoothness = percent * 0.45 + 0.05
+        updateSmoothnessSlider(aimbotSmoothness)
+    end
+end)
+
+-- Ползунок спрея
+spraySliderButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isDraggingSpray = true
+        local mousePos = input.Position
+        local sliderPos = spraySliderFrame.AbsolutePosition
+        local sliderSize = spraySliderFrame.AbsoluteSize
+        local percent = (mousePos.X - sliderPos.X) / sliderSize.X
+        percent = math.clamp(percent, 0, 1)
+        sprayAmount = percent * 0.3
+        updateSpraySlider(sprayAmount)
+    end
+end)
+
+-- Отслеживание движения мыши
+UserInputService.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement then
+        if isDraggingHeight then
+            local mousePos = input.Position
+            local sliderPos = heightSliderFrame.AbsolutePosition
+            local sliderSize = heightSliderFrame.AbsoluteSize
+            local percent = (mousePos.X - sliderPos.X) / sliderSize.X
+            percent = math.clamp(percent, 0, 1)
+            teleportHeight = math.floor(percent * 1000000)
+            if teleportHeight < 1 then teleportHeight = 1 end
+            updateHeightSlider(teleportHeight)
+            heightInputBox.Text = tostring(teleportHeight)
+        elseif isDraggingVelocity then
+            local mousePos = input.Position
+            local sliderPos = velocitySliderFrame.AbsolutePosition
+            local sliderSize = velocitySliderFrame.AbsoluteSize
+            local percent = (mousePos.X - sliderPos.X) / sliderSize.X
+            percent = math.clamp(percent, 0, 1)
+            velocityMultiplier = percent * 5
+            if velocityMultiplier < 0.1 then velocityMultiplier = 0.1 end
+            updateVelocitySlider(velocityMultiplier)
+            velocityInputBox.Text = string.format("%.1f", velocityMultiplier)
+        elseif isDraggingPlatformSpeed then
+            local mousePos = input.Position
+            local sliderPos = platformSpeedSliderFrame.AbsolutePosition
+            local sliderSize = platformSpeedSliderFrame.AbsoluteSize
+            local percent = (mousePos.X - sliderPos.X) / sliderSize.X
+            percent = math.clamp(percent, 0, 1)
+            platformSpeed = percent * 270 + 30
+            updatePlatformSpeedSlider(platformSpeed)
+        elseif isDraggingPlatformHeight then
+            local mousePos = input.Position
+            local sliderPos = platformHeightSliderFrame.AbsolutePosition
+            local sliderSize = platformHeightSliderFrame.AbsoluteSize
+            local percent = (mousePos.X - sliderPos.X) / sliderSize.X
+            percent = math.clamp(percent, 0, 1)
+            platformMaxHeight = math.floor(percent * 990 + 10)
+            updatePlatformHeightSlider(platformMaxHeight)
+        elseif isDraggingSmoothness then
+            local mousePos = input.Position
+            local sliderPos = smoothnessSliderFrame.AbsolutePosition
+            local sliderSize = smoothnessSliderFrame.AbsoluteSize
+            local percent = (mousePos.X - sliderPos.X) / sliderSize.X
+            percent = math.clamp(percent, 0, 1)
+            aimbotSmoothness = percent * 0.45 + 0.05
+            updateSmoothnessSlider(aimbotSmoothness)
+        elseif isDraggingSpray then
+            local mousePos = input.Position
+            local sliderPos = spraySliderFrame.AbsolutePosition
+            local sliderSize = spraySliderFrame.AbsoluteSize
+            local percent = (mousePos.X - sliderPos.X) / sliderSize.X
+            percent = math.clamp(percent, 0, 1)
+            sprayAmount = percent * 0.3
+            updateSpraySlider(sprayAmount)
+        end
+    end
+end)
+
+-- Отпускание кнопки мыши
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isDraggingHeight = false
+        isDraggingVelocity = false
+        isDraggingPlatformSpeed = false
+        isDraggingPlatformHeight = false
+        isDraggingSmoothness = false
+        isDraggingSpray = false
+    end
+end)
+
+-- Клик по самой полосе ползунка
+heightSliderFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        local mousePos = input.Position
+        local sliderPos = heightSliderFrame.AbsolutePosition
+        local sliderSize = heightSliderFrame.AbsoluteSize
+        local percent = (mousePos.X - sliderPos.X) / sliderSize.X
+        percent = math.clamp(percent, 0, 1)
+        teleportHeight = math.floor(percent * 1000000)
+        if teleportHeight < 1 then teleportHeight = 1 end
+        updateHeightSlider(teleportHeight)
+        heightInputBox.Text = tostring(teleportHeight)
+    end
+end)
+
+velocitySliderFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        local mousePos = input.Position
+        local sliderPos = velocitySliderFrame.AbsolutePosition
+        local sliderSize = velocitySliderFrame.AbsoluteSize
+        local percent = (mousePos.X - sliderPos.X) / sliderSize.X
+        percent = math.clamp(percent, 0, 1)
+        velocityMultiplier = percent * 5
+        if velocityMultiplier < 0.1 then velocityMultiplier = 0.1 end
+        updateVelocitySlider(velocityMultiplier)
+        velocityInputBox.Text = string.format("%.1f", velocityMultiplier)
+    end
+end)
+
+platformSpeedSliderFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        local mousePos = input.Position
+        local sliderPos = platformSpeedSliderFrame.AbsolutePosition
+        local sliderSize = platformSpeedSliderFrame.AbsoluteSize
+        local percent = (mousePos.X - sliderPos.X) / sliderSize.X
+        percent = math.clamp(percent, 0, 1)
+        platformSpeed = percent * 270 + 30
+        updatePlatformSpeedSlider(platformSpeed)
+    end
+end)
+
+platformHeightSliderFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        local mousePos = input.Position
+        local sliderPos = platformHeightSliderFrame.AbsolutePosition
+        local sliderSize = platformHeightSliderFrame.AbsoluteSize
+        local percent = (mousePos.X - sliderPos.X) / sliderSize.X
+        percent = math.clamp(percent, 0, 1)
+        platformMaxHeight = math.floor(percent * 990 + 10)
+        updatePlatformHeightSlider(platformMaxHeight)
+    end
+end)
+
+smoothnessSliderFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        local mousePos = input.Position
+        local sliderPos = smoothnessSliderFrame.AbsolutePosition
+        local sliderSize = smoothnessSliderFrame.AbsoluteSize
+        local percent = (mousePos.X - sliderPos.X) / sliderSize.X
+        percent = math.clamp(percent, 0, 1)
+        aimbotSmoothness = percent * 0.45 + 0.05
+        updateSmoothnessSlider(aimbotSmoothness)
+    end
+end)
+
+spraySliderFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        local mousePos = input.Position
+        local sliderPos = spraySliderFrame.AbsolutePosition
+        local sliderSize = spraySliderFrame.AbsoluteSize
+        local percent = (mousePos.X - sliderPos.X) / sliderSize.X
+        percent = math.clamp(percent, 0, 1)
+        sprayAmount = percent * 0.3
+        updateSpraySlider(sprayAmount)
+    end
+end)
+
+-- Применение значений из текстовых полей
+local function applyHeight()
+    local num = tonumber(heightInputBox.Text)
+    if num then
+        teleportHeight = math.clamp(math.floor(num), 1, 1000000)
+        updateHeightSlider(teleportHeight)
+        heightInputBox.Text = tostring(teleportHeight)
+    else
+        heightInputBox.Text = tostring(teleportHeight)
+    end
+end
+
+local function applyVelocity()
+    local num = tonumber(velocityInputBox.Text)
+    if num then
+        velocityMultiplier = math.clamp(num, 0.1, 5)
+        updateVelocitySlider(velocityMultiplier)
+        velocityInputBox.Text = string.format("%.1f", velocityMultiplier)
+    else
+        velocityInputBox.Text = string.format("%.1f", velocityMultiplier)
+    end
+end
+
+local function toggleSpray()
+    sprayEnabled = not sprayEnabled
+    if sprayEnabled then
+        sprayToggleButton.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
+        sprayToggleButton.Text = "🔘 СПРЕЙ ВКЛ"
+    else
+        sprayToggleButton.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
+        sprayToggleButton.Text = "❌ СПРЕЙ ВЫКЛ"
+    end
+end
+
+heightApplyButton.MouseButton1Click:Connect(applyHeight)
+heightInputBox.FocusLost:Connect(function(enter) if enter then applyHeight() end end)
+velocityApplyButton.MouseButton1Click:Connect(applyVelocity)
+velocityInputBox.FocusLost:Connect(function(enter) if enter then applyVelocity() end end)
+sprayToggleButton.MouseButton1Click:Connect(toggleSpray)
+
+-- ===== СОЗДАНИЕ GUI (только основные элементы, остальные такие же как были) =====
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "FastTeleportMenu"
 screenGui.ResetOnSpawn = false
@@ -639,7 +985,7 @@ counterLabel.Font = Enum.Font.SourceSans
 counterLabel.TextXAlignment = Enum.TextXAlignment.Center
 counterLabel.Parent = velocityPanel
 
--- ===== ПАНЕЛЬ ПЛАТФОРМЫ =====
+-- ===== ПАНЕЛЬ ПЛАТФОРМЫ (упрощённо) =====
 local platformMainLabel = Instance.new("TextLabel")
 platformMainLabel.Size = UDim2.new(1, -40, 0, 30)
 platformMainLabel.Position = UDim2.new(0, 20, 0, 15)
@@ -786,7 +1132,37 @@ platformCounterLabel.Font = Enum.Font.SourceSans
 platformCounterLabel.TextXAlignment = Enum.TextXAlignment.Center
 platformCounterLabel.Parent = platformPanel
 
--- ===== ПАНЕЛЬ АИМБОТА =====
+-- Цвета для платформы
+local platformColors = {
+    Color3.fromRGB(255, 50, 50),
+    Color3.fromRGB(50, 255, 50),
+    Color3.fromRGB(50, 50, 255),
+    Color3.fromRGB(255, 255, 50),
+    Color3.fromRGB(255, 50, 255)
+}
+
+for i, color in ipairs(platformColors) do
+    local colorButton = Instance.new("TextButton")
+    colorButton.Size = UDim2.new(0, 70, 1, 0)
+    colorButton.Position = UDim2.new(0, (i-1) * 72, 0, 0)
+    colorButton.BackgroundColor3 = color
+    colorButton.Text = ""
+    colorButton.BorderSizePixel = 0
+    colorButton.Parent = colorButtonsFrame
+    
+    local colorCorner = Instance.new("UICorner")
+    colorCorner.CornerRadius = UDim.new(0, 4)
+    colorCorner.Parent = colorButton
+    
+    colorButton.MouseButton1Click:Connect(function()
+        platformColor = color
+        if platform then
+            platform.Color = platformColor
+        end
+    end)
+end
+
+-- ===== ПАНЕЛЬ АИМБОТА (упрощённо) =====
 local aimbotMainLabel = Instance.new("TextLabel")
 aimbotMainLabel.Size = UDim2.new(1, -40, 0, 30)
 aimbotMainLabel.Position = UDim2.new(0, 20, 0, 15)
@@ -1043,36 +1419,6 @@ keybindInfoText.TextXAlignment = Enum.TextXAlignment.Left
 keybindInfoText.TextYAlignment = Enum.TextYAlignment.Top
 keybindInfoText.Parent = keybindInfoFrame
 
--- Цвета для платформы
-local platformColors = {
-    Color3.fromRGB(255, 50, 50),
-    Color3.fromRGB(50, 255, 50),
-    Color3.fromRGB(50, 50, 255),
-    Color3.fromRGB(255, 255, 50),
-    Color3.fromRGB(255, 50, 255)
-}
-
-for i, color in ipairs(platformColors) do
-    local colorButton = Instance.new("TextButton")
-    colorButton.Size = UDim2.new(0, 70, 1, 0)
-    colorButton.Position = UDim2.new(0, (i-1) * 72, 0, 0)
-    colorButton.BackgroundColor3 = color
-    colorButton.Text = ""
-    colorButton.BorderSizePixel = 0
-    colorButton.Parent = colorButtonsFrame
-    
-    local colorCorner = Instance.new("UICorner")
-    colorCorner.CornerRadius = UDim.new(0, 4)
-    colorCorner.Parent = colorButton
-    
-    colorButton.MouseButton1Click:Connect(function()
-        platformColor = color
-        if platform then
-            platform.Color = platformColor
-        end
-    end)
-end
-
 -- Переключение вкладок
 tab1.MouseButton1Click:Connect(function()
     velocityPanel.Visible = true
@@ -1124,229 +1470,6 @@ end)
 actionButton.MouseButton1Click:Connect(activateVelocity)
 platformActionButton.MouseButton1Click:Connect(platformAction)
 aimbotToggleButton.MouseButton1Click:Connect(toggleAimbot)
-
--- Функции для ползунков
-local isDraggingHeight = false
-local isDraggingVelocity = false
-local isDraggingPlatformSpeed = false
-local isDraggingPlatformHeight = false
-local isDraggingSmoothness = false
-local isDraggingSpray = false
-
-heightSliderButton.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        isDraggingHeight = true
-        local percent = (input.Position.X - heightSliderFrame.AbsolutePosition.X) / heightSliderFrame.AbsoluteSize.X
-        percent = math.clamp(percent, 0, 1)
-        teleportHeight = math.floor(percent * 1000000)
-        updateHeightSlider(teleportHeight)
-        heightInputBox.Text = tostring(teleportHeight)
-    end
-end)
-
-velocitySliderButton.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        isDraggingVelocity = true
-        local percent = (input.Position.X - velocitySliderFrame.AbsolutePosition.X) / velocitySliderFrame.AbsoluteSize.X
-        percent = math.clamp(percent, 0, 1)
-        velocityMultiplier = percent * 5
-        updateVelocitySlider(velocityMultiplier)
-        velocityInputBox.Text = string.format("%.1f", velocityMultiplier)
-    end
-end)
-
-platformSpeedSliderButton.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        isDraggingPlatformSpeed = true
-        local percent = (input.Position.X - platformSpeedSliderFrame.AbsolutePosition.X) / platformSpeedSliderFrame.AbsoluteSize.X
-        percent = math.clamp(percent, 0, 1)
-        local newSpeed = percent * 270 + 30
-        platformSpeed = math.clamp(newSpeed, 30, 300)
-        updatePlatformSpeedSlider(platformSpeed)
-    end
-end)
-
-platformHeightSliderButton.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        isDraggingPlatformHeight = true
-        local percent = (input.Position.X - platformHeightSliderFrame.AbsolutePosition.X) / platformHeightSliderFrame.AbsoluteSize.X
-        percent = math.clamp(percent, 0, 1)
-        local newHeight = percent * 990 + 10
-        platformMaxHeight = math.floor(newHeight)
-        updatePlatformHeightSlider(platformMaxHeight)
-    end
-end)
-
-smoothnessSliderButton.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        isDraggingSmoothness = true
-        local percent = (input.Position.X - smoothnessSliderFrame.AbsolutePosition.X) / smoothnessSliderFrame.AbsoluteSize.X
-        percent = math.clamp(percent, 0, 1)
-        local newSmoothness = percent * 0.45 + 0.05
-        aimbotSmoothness = math.clamp(newSmoothness, 0.05, 0.5)
-        updateSmoothnessSlider(aimbotSmoothness)
-    end
-end)
-
-spraySliderButton.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        isDraggingSpray = true
-        local percent = (input.Position.X - spraySliderFrame.AbsolutePosition.X) / spraySliderFrame.AbsoluteSize.X
-        percent = math.clamp(percent, 0, 1)
-        sprayAmount = percent * 0.3
-        updateSpraySlider(sprayAmount)
-    end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-    if isDraggingHeight and input.UserInputType == Enum.UserInputType.MouseMovement then
-        local percent = (input.Position.X - heightSliderFrame.AbsolutePosition.X) / heightSliderFrame.AbsoluteSize.X
-        percent = math.clamp(percent, 0, 1)
-        teleportHeight = math.floor(percent * 1000000)
-        updateHeightSlider(teleportHeight)
-        heightInputBox.Text = tostring(teleportHeight)
-    elseif isDraggingVelocity and input.UserInputType == Enum.UserInputType.MouseMovement then
-        local percent = (input.Position.X - velocitySliderFrame.AbsolutePosition.X) / velocitySliderFrame.AbsoluteSize.X
-        percent = math.clamp(percent, 0, 1)
-        velocityMultiplier = percent * 5
-        updateVelocitySlider(velocityMultiplier)
-        velocityInputBox.Text = string.format("%.1f", velocityMultiplier)
-    elseif isDraggingPlatformSpeed and input.UserInputType == Enum.UserInputType.MouseMovement then
-        local percent = (input.Position.X - platformSpeedSliderFrame.AbsolutePosition.X) / platformSpeedSliderFrame.AbsoluteSize.X
-        percent = math.clamp(percent, 0, 1)
-        local newSpeed = percent * 270 + 30
-        platformSpeed = math.clamp(newSpeed, 30, 300)
-        updatePlatformSpeedSlider(platformSpeed)
-    elseif isDraggingPlatformHeight and input.UserInputType == Enum.UserInputType.MouseMovement then
-        local percent = (input.Position.X - platformHeightSliderFrame.AbsolutePosition.X) / platformHeightSliderFrame.AbsoluteSize.X
-        percent = math.clamp(percent, 0, 1)
-        local newHeight = percent * 990 + 10
-        platformMaxHeight = math.floor(newHeight)
-        updatePlatformHeightSlider(platformMaxHeight)
-    elseif isDraggingSmoothness and input.UserInputType == Enum.UserInputType.MouseMovement then
-        local percent = (input.Position.X - smoothnessSliderFrame.AbsolutePosition.X) / smoothnessSliderFrame.AbsoluteSize.X
-        percent = math.clamp(percent, 0, 1)
-        aimbotSmoothness = percent * 0.45 + 0.05
-        updateSmoothnessSlider(aimbotSmoothness)
-    elseif isDraggingSpray and input.UserInputType == Enum.UserInputType.MouseMovement then
-        local percent = (input.Position.X - spraySliderFrame.AbsolutePosition.X) / spraySliderFrame.AbsoluteSize.X
-        percent = math.clamp(percent, 0, 1)
-        sprayAmount = percent * 0.3
-        updateSpraySlider(sprayAmount)
-    end
-end)
-
-UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        isDraggingHeight = false
-        isDraggingVelocity = false
-        isDraggingPlatformSpeed = false
-        isDraggingPlatformHeight = false
-        isDraggingSmoothness = false
-        isDraggingSpray = false
-    end
-end)
-
--- Функции обновления слайдеров
-local function updateHeightSlider(value)
-    local minVal = 1
-    local maxVal = 1000000
-    local percent = (value - minVal) / (maxVal - minVal)
-    percent = math.clamp(percent, 0, 1)
-    heightSliderFill.Size = UDim2.new(percent, 0, 1, 0)
-    heightSliderButton.Position = UDim2.new(percent, -10, 0.5, -10)
-    heightValueLabel.Text = formatNumber(value) .. " студней"
-end
-
-local function updateVelocitySlider(value)
-    local minVal = 0.1
-    local maxVal = 5.0
-    local percent = (value - minVal) / (maxVal - minVal)
-    percent = math.clamp(percent, 0, 1)
-    velocitySliderFill.Size = UDim2.new(percent, 0, 1, 0)
-    velocitySliderButton.Position = UDim2.new(percent, -10, 0.5, -10)
-    velocityValueLabel.Text = "Множитель: x" .. string.format("%.1f", value)
-end
-
-local function updatePlatformSpeedSlider(value)
-    local minVal = 30
-    local maxVal = 300
-    local percent = (value - minVal) / (maxVal - minVal)
-    percent = math.clamp(percent, 0, 1)
-    platformSpeedSliderFill.Size = UDim2.new(percent, 0, 1, 0)
-    platformSpeedSliderButton.Position = UDim2.new(percent, -10, 0.5, -10)
-    platformSpeedValueLabel.Text = math.floor(value) .. " ст/с"
-end
-
-local function updatePlatformHeightSlider(value)
-    local minVal = 10
-    local maxVal = 1000
-    local percent = (value - minVal) / (maxVal - minVal)
-    percent = math.clamp(percent, 0, 1)
-    platformHeightSliderFill.Size = UDim2.new(percent, 0, 1, 0)
-    platformHeightSliderButton.Position = UDim2.new(percent, -10, 0.5, -10)
-    platformHeightValueLabel.Text = math.floor(value) .. " ст"
-end
-
-local function updateSmoothnessSlider(value)
-    local minVal = 0.05
-    local maxVal = 0.5
-    local percent = (value - minVal) / (maxVal - minVal)
-    percent = math.clamp(percent, 0, 1)
-    smoothnessSliderFill.Size = UDim2.new(percent, 0, 1, 0)
-    smoothnessSliderButton.Position = UDim2.new(percent, -10, 0.5, -10)
-    smoothnessValueLabel.Text = string.format("%.2f", value)
-end
-
-local function updateSpraySlider(value)
-    local minVal = 0
-    local maxVal = 0.3
-    local percent = (value - minVal) / (maxVal - minVal)
-    percent = math.clamp(percent, 0, 1)
-    spraySliderFill.Size = UDim2.new(percent, 0, 1, 0)
-    spraySliderButton.Position = UDim2.new(percent, -10, 0.5, -10)
-    sprayValueLabel.Text = string.format("%.2f", value)
-end
-
--- Применение значений
-local function applyHeight()
-    local num = tonumber(heightInputBox.Text)
-    if num then
-        teleportHeight = math.clamp(math.floor(num), 1, 1000000)
-        updateHeightSlider(teleportHeight)
-        heightInputBox.Text = tostring(teleportHeight)
-    else
-        heightInputBox.Text = tostring(teleportHeight)
-    end
-end
-
-local function applyVelocity()
-    local num = tonumber(velocityInputBox.Text)
-    if num then
-        velocityMultiplier = math.clamp(num, 0.1, 5)
-        updateVelocitySlider(velocityMultiplier)
-        velocityInputBox.Text = string.format("%.1f", velocityMultiplier)
-    else
-        velocityInputBox.Text = string.format("%.1f", velocityMultiplier)
-    end
-end
-
-local function toggleSpray()
-    sprayEnabled = not sprayEnabled
-    if sprayEnabled then
-        sprayToggleButton.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
-        sprayToggleButton.Text = "🔘 СПРЕЙ ВКЛ"
-    else
-        sprayToggleButton.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
-        sprayToggleButton.Text = "❌ СПРЕЙ ВЫКЛ"
-    end
-end
-
-heightApplyButton.MouseButton1Click:Connect(applyHeight)
-heightInputBox.FocusLost:Connect(function(enter) if enter then applyHeight() end end)
-velocityApplyButton.MouseButton1Click:Connect(applyVelocity)
-velocityInputBox.FocusLost:Connect(function(enter) if enter then applyVelocity() end end)
-sprayToggleButton.MouseButton1Click:Connect(toggleSpray)
 
 -- Функции для изменения кейбиндов
 local waitingForActionKey = false
@@ -1538,7 +1661,7 @@ closeButton.MouseButton1Click:Connect(function()
     screenGui:Destroy()
 end)
 
--- Инициализация
+-- Инициализация значений ползунков
 updateHeightSlider(teleportHeight)
 updateVelocitySlider(velocityMultiplier)
 updatePlatformSpeedSlider(platformSpeed)
