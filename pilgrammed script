@@ -2,16 +2,29 @@ local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
 
 local character = player.Character or player.CharacterAdded:Wait()
-local camera = workspace.CurrentCamera
-
--- НАСТРОЙКИ
-local distance = 100
+local distance = 500
 local isShooting = false
-local toggleKey = Enum.KeyCode.R -- нажми R для включения/выключения
+local currentArrow = "Ice Arrow"
+local toggleKey = Enum.KeyCode.R
 
--- Лук
+-- Доступные типы стрел
+local availableArrows = {
+    "Ice Arrow",
+    "Fire Arrow", 
+    "Poison Arrow",
+    "Explosive Arrow",
+    "Lightning Arrow",
+    "Wooden Arrow",
+    "Diamond Arrow",
+    "Golden Arrow",
+    "Steel Arrow",
+    "Dark Arrow"
+}
+
+-- Ждём лук
 local bow = character:WaitForChild("Prism Bow")
 local shoot = bow:WaitForChild("Shoot")
 
@@ -22,22 +35,323 @@ local function shootArrow()
         return 
     end
     
-    local targetPosition = camera.CFrame.Position + camera.CFrame.LookVector * distance
+    local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+    local targetPosition = humanoidRootPart.Position + humanoidRootPart.CFrame.LookVector * distance
     
     local args = {
         targetPosition,
-        "Ice Arrow",
+        currentArrow,
         true,
         1
     }
     
-    shoot:InvokeServer(unpack(args))
+    pcall(function()
+        shoot:InvokeServer(unpack(args))
+    end)
 end
 
--- Переменная для подключения
+-- ===== СОЗДАНИЕ GUI =====
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "ArrowShooterGUI"
+screenGui.ResetOnSpawn = false
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+-- Главное окно
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 320, 0, 450)
+mainFrame.Position = UDim2.new(0.5, -160, 0.5, -225)
+mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+mainFrame.BackgroundTransparency = 0.1
+mainFrame.BorderSizePixel = 0
+mainFrame.ClipsDescendants = true
+mainFrame.Parent = screenGui
+
+-- Скругление углов
+local corners = Instance.new("UICorner")
+corners.CornerRadius = UDim.new(0, 10)
+corners.Parent = mainFrame
+
+-- Тень
+local shadow = Instance.new("Frame")
+shadow.Size = UDim2.new(1, 10, 1, 10)
+shadow.Position = UDim2.new(0, -5, 0, -5)
+shadow.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+shadow.BackgroundTransparency = 0.7
+shadow.BorderSizePixel = 0
+shadow.Parent = mainFrame
+
+local shadowCorners = Instance.new("UICorner")
+shadowCorners.CornerRadius = UDim.new(0, 10)
+shadowCorners.Parent = shadow
+
+-- Заголовок
+local titleBar = Instance.new("Frame")
+titleBar.Size = UDim2.new(1, 0, 0, 45)
+titleBar.BackgroundColor3 = Color3.fromRGB(45, 55, 80)
+titleBar.BorderSizePixel = 0
+titleBar.Parent = mainFrame
+
+local titleCorners = Instance.new("UICorner")
+titleCorners.CornerRadius = UDim.new(0, 10)
+titleCorners.Parent = titleBar
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, -80, 1, 0)
+title.Position = UDim2.new(0, 15, 0, 0)
+title.BackgroundTransparency = 1
+title.Text = "🏹 Body Arrow Shooter"
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.Font = Enum.Font.GothamBold
+title.TextSize = 16
+title.Parent = titleBar
+
+-- Кнопка свернуть
+local minimizeButton = Instance.new("TextButton")
+minimizeButton.Size = UDim2.new(0, 35, 0, 35)
+minimizeButton.Position = UDim2.new(1, -80, 0, 5)
+minimizeButton.BackgroundColor3 = Color3.fromRGB(80, 80, 100)
+minimizeButton.BorderSizePixel = 0
+minimizeButton.Text = "─"
+minimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+minimizeButton.Font = Enum.Font.GothamBold
+minimizeButton.TextSize = 20
+minimizeButton.Parent = titleBar
+
+local minimizeCorners = Instance.new("UICorner")
+minimizeCorners.CornerRadius = UDim.new(0, 5)
+minimizeCorners.Parent = minimizeButton
+
+-- Кнопка закрыть
+local closeButton = Instance.new("TextButton")
+closeButton.Size = UDim2.new(0, 35, 0, 35)
+closeButton.Position = UDim2.new(1, -40, 0, 5)
+closeButton.BackgroundColor3 = Color3.fromRGB(200, 70, 70)
+closeButton.BorderSizePixel = 0
+closeButton.Text = "✕"
+closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeButton.Font = Enum.Font.GothamBold
+closeButton.TextSize = 18
+closeButton.Parent = titleBar
+
+local closeCorners = Instance.new("UICorner")
+closeCorners.CornerRadius = UDim.new(0, 5)
+closeCorners.Parent = closeButton
+
+-- Контент
+local contentFrame = Instance.new("Frame")
+contentFrame.Size = UDim2.new(1, -20, 1, -60)
+contentFrame.Position = UDim2.new(0, 10, 0, 55)
+contentFrame.BackgroundTransparency = 1
+contentFrame.Parent = mainFrame
+
+-- Статус
+local statusFrame = Instance.new("Frame")
+statusFrame.Size = UDim2.new(1, 0, 0, 40)
+statusFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+statusFrame.BorderSizePixel = 0
+statusFrame.Parent = contentFrame
+
+local statusCorners = Instance.new("UICorner")
+statusCorners.CornerRadius = UDim.new(0, 8)
+statusCorners.Parent = statusFrame
+
+local statusIcon = Instance.new("TextLabel")
+statusIcon.Size = UDim2.new(0, 30, 1, 0)
+statusIcon.BackgroundTransparency = 1
+statusIcon.Text = "⚡"
+statusIcon.TextColor3 = Color3.fromRGB(255, 200, 100)
+statusIcon.TextSize = 20
+statusIcon.Font = Enum.Font.GothamBold
+statusIcon.Parent = statusFrame
+
+local statusText = Instance.new("TextLabel")
+statusText.Size = UDim2.new(1, -40, 1, 0)
+statusText.Position = UDim2.new(0, 35, 0, 0)
+statusText.BackgroundTransparency = 1
+statusText.Text = "Статус: ОСТАНОВЛЕН"
+statusText.TextColor3 = Color3.fromRGB(255, 100, 100)
+statusText.TextXAlignment = Enum.TextXAlignment.Left
+statusText.Font = Enum.Font.GothamSemibold
+statusText.TextSize = 14
+statusText.Parent = statusFrame
+
+-- Выбор стрелы
+local arrowLabel = Instance.new("TextLabel")
+arrowLabel.Size = UDim2.new(1, 0, 0, 25)
+arrowLabel.Position = UDim2.new(0, 0, 0, 55)
+arrowLabel.BackgroundTransparency = 1
+arrowLabel.Text = "🏹 Тип стрелы:"
+arrowLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+arrowLabel.TextXAlignment = Enum.TextXAlignment.Left
+arrowLabel.Font = Enum.Font.Gotham
+arrowLabel.TextSize = 13
+arrowLabel.Parent = contentFrame
+
+local arrowButton = Instance.new("TextButton")
+arrowButton.Size = UDim2.new(1, 0, 0, 40)
+arrowButton.Position = UDim2.new(0, 0, 0, 80)
+arrowButton.BackgroundColor3 = Color3.fromRGB(55, 65, 90)
+arrowButton.BorderSizePixel = 0
+arrowButton.Text = currentArrow .. " ▼"
+arrowButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+arrowButton.Font = Enum.Font.Gotham
+arrowButton.TextSize = 14
+arrowButton.Parent = contentFrame
+
+local arrowCorners = Instance.new("UICorner")
+arrowCorners.CornerRadius = UDim.new(0, 6)
+arrowCorners.Parent = arrowButton
+
+-- Выпадающий список
+local dropdownFrame = Instance.new("Frame")
+dropdownFrame.Size = UDim2.new(1, 0, 0, 0)
+dropdownFrame.Position = UDim2.new(0, 0, 0, 120)
+dropdownFrame.BackgroundColor3 = Color3.fromRGB(45, 55, 75)
+dropdownFrame.BorderSizePixel = 0
+dropdownFrame.Visible = false
+dropdownFrame.ClipsDescendants = true
+dropdownFrame.Parent = contentFrame
+
+local dropdownCorners = Instance.new("UICorner")
+dropdownCorners.CornerRadius = UDim.new(0, 6)
+dropdownCorners.Parent = dropdownFrame
+
+local dropdownList = Instance.new("ScrollingFrame")
+dropdownList.Size = UDim2.new(1, -4, 1, -4)
+dropdownList.Position = UDim2.new(0, 2, 0, 2)
+dropdownList.BackgroundTransparency = 1
+dropdownList.BorderSizePixel = 0
+dropdownList.ScrollBarThickness = 6
+dropdownList.Parent = dropdownFrame
+
+local dropdownLayout = Instance.new("UIListLayout")
+dropdownLayout.Padding = UDim.new(0, 2)
+dropdownLayout.Parent = dropdownList
+
+-- Создание кнопок для стрел
+local dropdownButtons = {}
+for i, arrowName in ipairs(availableArrows) do
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, 0, 0, 30)
+    btn.BackgroundColor3 = Color3.fromRGB(55, 65, 85)
+    btn.BorderSizePixel = 0
+    btn.Text = arrowName
+    btn.TextColor3 = Color3.fromRGB(220, 220, 220)
+    btn.Font = Enum.Font.Gotham
+    btn.TextSize = 13
+    btn.Parent = dropdownList
+    
+    local btnCorners = Instance.new("UICorner")
+    btnCorners.CornerRadius = UDim.new(0, 4)
+    btnCorners.Parent = btn
+    
+    btn.MouseButton1Click:Connect(function()
+        currentArrow = arrowName
+        arrowButton.Text = currentArrow .. " ▼"
+        dropdownFrame.Visible = false
+        print("Выбрана стрела: " .. currentArrow)
+    end)
+    
+    table.insert(dropdownButtons, btn)
+end
+
+-- Настройка высоты выпадающего списка
+dropdownList.CanvasSize = UDim2.new(0, 0, 0, #availableArrows * 32)
+
+arrowButton.MouseButton1Click:Connect(function()
+    dropdownFrame.Visible = not dropdownFrame.Visible
+    if dropdownFrame.Visible then
+        local height = math.min(#availableArrows * 34, 200)
+        dropdownFrame.Size = UDim2.new(1, 0, 0, height)
+    end
+end)
+
+-- Настройка клавиши
+local keybindLabel = Instance.new("TextLabel")
+keybindLabel.Size = UDim2.new(1, 0, 0, 25)
+keybindLabel.Position = UDim2.new(0, 0, 0, 135)
+keybindLabel.BackgroundTransparency = 1
+keybindLabel.Text = "⌨️ Клавиша активации:"
+keybindLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+keybindLabel.TextXAlignment = Enum.TextXAlignment.Left
+keybindLabel.Font = Enum.Font.Gotham
+keybindLabel.TextSize = 13
+keybindLabel.Parent = contentFrame
+
+local keybindFrame = Instance.new("Frame")
+keybindFrame.Size = UDim2.new(1, 0, 0, 45)
+keybindFrame.Position = UDim2.new(0, 0, 0, 160)
+keybindFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+keybindFrame.BorderSizePixel = 0
+keybindFrame.Parent = contentFrame
+
+local keybindCorners = Instance.new("UICorner")
+keybindCorners.CornerRadius = UDim.new(0, 8)
+keybindCorners.Parent = keybindFrame
+
+local keybindText = Instance.new("TextLabel")
+keybindText.Size = UDim2.new(0.5, -10, 1, -10)
+keybindText.Position = UDim2.new(0, 10, 0, 5)
+keybindText.BackgroundColor3 = Color3.fromRGB(55, 65, 90)
+keybindText.BorderSizePixel = 0
+keybindText.Text = tostring(toggleKey):gsub("Enum.KeyCode.", "")
+keybindText.TextColor3 = Color3.fromRGB(255, 255, 255)
+keybindText.Font = Enum.Font.GothamBold
+keybindText.TextSize = 18
+keybindText.Parent = keybindFrame
+
+local keybindTextCorners = Instance.new("UICorner")
+keybindTextCorners.CornerRadius = UDim.new(0, 6)
+keybindTextCorners.Parent = keybindText
+
+local changeKeyButton = Instance.new("TextButton")
+changeKeyButton.Size = UDim2.new(0.45, -10, 1, -10)
+changeKeyButton.Position = UDim2.new(0.55, 5, 0, 5)
+changeKeyButton.BackgroundColor3 = Color3.fromRGB(100, 120, 200)
+changeKeyButton.BorderSizePixel = 0
+changeKeyButton.Text = "Изменить"
+changeKeyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+changeKeyButton.Font = Enum.Font.GothamBold
+changeKeyButton.TextSize = 14
+changeKeyButton.Parent = keybindFrame
+
+local changeKeyCorners = Instance.new("UICorner")
+changeKeyCorners.CornerRadius = UDim.new(0, 6)
+changeKeyCorners.Parent = changeKeyButton
+
+-- Кнопка старт/стоп
+local toggleButton = Instance.new("TextButton")
+toggleButton.Size = UDim2.new(1, 0, 0, 55)
+toggleButton.Position = UDim2.new(0, 0, 0, 220)
+toggleButton.BackgroundColor3 = Color3.fromRGB(80, 180, 80)
+toggleButton.BorderSizePixel = 0
+toggleButton.Text = "▶ СТАРТ"
+toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleButton.Font = Enum.Font.GothamBold
+toggleButton.TextSize = 18
+toggleButton.Parent = contentFrame
+
+local toggleCorners = Instance.new("UICorner")
+toggleCorners.CornerRadius = UDim.new(0, 8)
+toggleCorners.Parent = toggleButton
+
+-- Информация
+local infoText = Instance.new("TextLabel")
+infoText.Size = UDim2.new(1, 0, 0, 35)
+infoText.Position = UDim2.new(0, 0, 0, 290)
+infoText.BackgroundTransparency = 1
+infoText.Text = "💡 Стреляет от тела персонажа\n   вперёд (куда смотрит персонаж)"
+infoText.TextColor3 = Color3.fromRGB(150, 150, 170)
+infoText.TextXAlignment = Enum.TextXAlignment.Left
+infoText.Font = Enum.Font.Gotham
+infoText.TextSize = 11
+infoText.Parent = contentFrame
+
+-- Логика стрельбы
 local renderConnection = nil
 
--- Функция начала стрельбы
 local function startShooting()
     if renderConnection then return end
     renderConnection = RunService.RenderStepped:Connect(function()
@@ -45,30 +359,120 @@ local function startShooting()
             shootArrow()
         end
     end)
+    statusText.Text = "Статус: АКТИВЕН 🔫"
+    statusText.TextColor3 = Color3.fromRGB(100, 255, 100)
+    toggleButton.Text = "⏸ СТОП"
+    toggleButton.BackgroundColor3 = Color3.fromRGB(200, 80, 80)
+    statusIcon.Text = "🔫"
 end
 
--- Функция остановки стрельбы
 local function stopShooting()
     if renderConnection then
         renderConnection:Disconnect()
         renderConnection = nil
     end
+    statusText.Text = "Статус: ОСТАНОВЛЕН"
+    statusText.TextColor3 = Color3.fromRGB(255, 100, 100)
+    toggleButton.Text = "▶ СТАРТ"
+    toggleButton.BackgroundColor3 = Color3.fromRGB(80, 180, 80)
+    statusIcon.Text = "⚡"
 end
 
--- Обработка нажатий клавиш
+-- Обработчики GUI
+toggleButton.MouseButton1Click:Connect(function()
+    if isShooting then
+        isShooting = false
+        stopShooting()
+    else
+        isShooting = true
+        startShooting()
+    end
+end)
+
+-- Изменение клавиши
+local waitingForKey = false
+changeKeyButton.MouseButton1Click:Connect(function()
+    waitingForKey = true
+    keybindText.Text = "..."
+    keybindText.BackgroundColor3 = Color3.fromRGB(120, 100, 80)
+    changeKeyButton.Text = "Ожидание..."
+end)
+
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
+    
+    if waitingForKey then
+        if input.KeyCode ~= Enum.KeyCode.Unknown then
+            toggleKey = input.KeyCode
+            keybindText.Text = tostring(toggleKey):gsub("Enum.KeyCode.", "")
+            keybindText.BackgroundColor3 = Color3.fromRGB(55, 65, 90)
+            changeKeyButton.Text = "Изменить"
+            waitingForKey = false
+            print("Клавиша изменена на: " .. tostring(toggleKey))
+        end
+        return
+    end
+    
     if input.KeyCode == toggleKey then
         if isShooting then
             isShooting = false
             stopShooting()
-            print("Стрельба остановлена")
         else
             isShooting = true
             startShooting()
-            print("Стрельба начата")
         end
     end
 end)
 
-print("Нажми R чтобы начать/остановить стрельбу (без задержки)")
+-- Сворачивание
+local minimized = false
+local originalHeight = 450
+
+minimizeButton.MouseButton1Click:Connect(function()
+    minimized = not minimized
+    if minimized then
+        TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {Size = UDim2.new(0, 320, 0, 45)}):Play()
+        contentFrame.Visible = false
+        minimizeButton.Text = "□"
+    else
+        TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {Size = UDim2.new(0, 320, 0, originalHeight)}):Play()
+        contentFrame.Visible = true
+        minimizeButton.Text = "─"
+    end
+end)
+
+-- Закрытие
+closeButton.MouseButton1Click:Connect(function()
+    if renderConnection then
+        renderConnection:Disconnect()
+    end
+    screenGui:Destroy()
+end)
+
+-- Перетаскивание окна
+local dragging = false
+local dragStart
+local frameStart
+
+titleBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        frameStart = mainFrame.Position
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = false
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local delta = input.Position - dragStart
+        mainFrame.Position = UDim2.new(frameStart.X.Scale, frameStart.X.Offset + delta.X, frameStart.Y.Scale, frameStart.Y.Offset + delta.Y)
+    end
+end)
+
+print("✅ GUI загружен! Нажми " .. tostring(toggleKey):gsub("Enum.KeyCode.", "") .. " для стрельбы")
