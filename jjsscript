@@ -1,4 +1,4 @@
--- Velocity + БЫСТРАЯ ПЛАТФОРМА + АИМБОТ + КЕЙБИНДЫ
+-- Velocity + БЫСТРАЯ ПЛАТФОРМА + АИМБОТ + КЕЙБИНДЫ (БЕЗ ПОДКИДЫВАНИЯ)
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
@@ -36,6 +36,7 @@ local selectedMethod = "Platform"
 local platformTween = nil
 local platformRenderConnection = nil
 local platformActive = false
+local originalGravity = nil -- Сохраняем оригинальную гравитацию
 
 -- Переменные для аимбота (активные)
 local aimbotConnection = nil
@@ -206,7 +207,7 @@ local function activateVelocity()
     end
 end
 
--- ===== ФУНКЦИИ ПЛАТФОРМЫ =====
+-- ===== ФУНКЦИИ ПЛАТФОРМЫ (БЕЗ ПОДКИДЫВАНИЯ) =====
 local function createPlatform()
     if not currentCharacter then return nil end
     
@@ -239,6 +240,7 @@ local function platformAction()
     end
     
     if platformActive then
+        -- Удаляем платформу (персонаж ОСТАЁТСЯ на месте, НЕ ПОДКИДЫВАЕТ)
         if platform then
             platform:Destroy()
             platform = nil
@@ -252,6 +254,13 @@ local function platformAction()
             platformRenderConnection = nil
         end
         platformActive = false
+        
+        -- Включаем гравитацию обратно если была отключена
+        if originalGravity then
+            workspace.Gravity = originalGravity
+            originalGravity = nil
+        end
+        
         platformStatusLabel.Text = "🔼 Платформа удалена! Вы остались на месте"
         platformStatusLabel.TextColor3 = Color3.fromRGB(255, 200, 100)
         task.wait(1.5)
@@ -260,9 +269,14 @@ local function platformAction()
             platformStatusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
         end
     else
+        -- Создаём новую платформу
         platform = createPlatform()
         if platform then
             platformActive = true
+            
+            -- Отключаем гравитацию чтобы не падать
+            originalGravity = workspace.Gravity
+            workspace.Gravity = 0
             
             local hrp = currentCharacter:FindFirstChild("HumanoidRootPart")
             if hrp then
@@ -290,6 +304,11 @@ local function platformAction()
                         platformRenderConnection:Disconnect()
                         platformRenderConnection = nil
                     end
+                    -- Включаем гравитацию обратно
+                    if originalGravity then
+                        workspace.Gravity = originalGravity
+                        originalGravity = nil
+                    end
                     platformStatusLabel.Text = "✅ Подъём завершён!"
                     task.wait(1.5)
                     if isAlive then
@@ -302,71 +321,6 @@ local function platformAction()
             platformStatusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
         end
     end
-end
-
--- ===== ФУНКЦИИ ПОЛЗУНКОВ =====
-local function updateHeightSlider(value)
-    local minVal = 1
-    local maxVal = 1000000
-    local percent = (value - minVal) / (maxVal - minVal)
-    percent = math.clamp(percent, 0, 1)
-    heightSliderFill.Size = UDim2.new(percent, 0, 1, 0)
-    heightSliderButton.Position = UDim2.new(percent, -10, 0.5, -10)
-    heightValueLabel.Text = formatNumber(value) .. " студней"
-end
-
-local function updateVelocitySlider(value)
-    local minVal = 0.1
-    local maxVal = 5.0
-    local percent = (value - minVal) / (maxVal - minVal)
-    percent = math.clamp(percent, 0, 1)
-    velocitySliderFill.Size = UDim2.new(percent, 0, 1, 0)
-    velocitySliderButton.Position = UDim2.new(percent, -10, 0.5, -10)
-    velocityValueLabel.Text = "Множитель скорости: x" .. string.format("%.1f", value)
-end
-
-local function updatePlatformSpeedSlider(value)
-    local minVal = 30
-    local maxVal = 300
-    local percent = (value - minVal) / (maxVal - minVal)
-    percent = math.clamp(percent, 0, 1)
-    platformSpeedSliderFill.Size = UDim2.new(percent, 0, 1, 0)
-    platformSpeedSliderButton.Position = UDim2.new(percent, -10, 0.5, -10)
-    platformSpeedValueLabel.Text = math.floor(value) .. " ст/с"
-    platformSpeed = value
-end
-
-local function updatePlatformHeightSlider(value)
-    local minVal = 10
-    local maxVal = 1000
-    local percent = (value - minVal) / (maxVal - minVal)
-    percent = math.clamp(percent, 0, 1)
-    platformHeightSliderFill.Size = UDim2.new(percent, 0, 1, 0)
-    platformHeightSliderButton.Position = UDim2.new(percent, -10, 0.5, -10)
-    platformHeightValueLabel.Text = math.floor(value) .. " ст"
-    platformMaxHeight = value
-end
-
-local function updateSmoothnessSlider(value)
-    local minVal = 0.05
-    local maxVal = 0.5
-    local percent = (value - minVal) / (maxVal - minVal)
-    percent = math.clamp(percent, 0, 1)
-    smoothnessSliderFill.Size = UDim2.new(percent, 0, 1, 0)
-    smoothnessSliderButton.Position = UDim2.new(percent, -10, 0.5, -10)
-    smoothnessValueLabel.Text = string.format("%.2f", value)
-    aimbotSmoothness = value
-end
-
-local function updateSpraySlider(value)
-    local minVal = 0
-    local maxVal = 0.3
-    local percent = (value - minVal) / (maxVal - minVal)
-    percent = math.clamp(percent, 0, 1)
-    spraySliderFill.Size = UDim2.new(percent, 0, 1, 0)
-    spraySliderButton.Position = UDim2.new(percent, -10, 0.5, -10)
-    sprayValueLabel.Text = string.format("%.2f", value)
-    sprayAmount = value
 end
 
 -- ===== СОЗДАНИЕ GUI =====
@@ -453,37 +407,48 @@ tabBar.BackgroundTransparency = 0.5
 tabBar.Parent = contentFrame
 
 local tab1 = Instance.new("TextButton")
-tab1.Size = UDim2.new(0.33, 0, 1, 0)
+tab1.Size = UDim2.new(0.25, 0, 1, 0)
 tab1.Position = UDim2.new(0, 0, 0, 0)
 tab1.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
 tab1.Text = "⚡ Velocity"
 tab1.TextColor3 = Color3.fromRGB(255, 255, 255)
-tab1.TextSize = 12
+tab1.TextSize = 11
 tab1.Font = Enum.Font.GothamBold
 tab1.BorderSizePixel = 0
 tab1.Parent = tabBar
 
 local tab2 = Instance.new("TextButton")
-tab2.Size = UDim2.new(0.33, 0, 1, 0)
-tab2.Position = UDim2.new(0.33, 0, 0, 0)
+tab2.Size = UDim2.new(0.25, 0, 1, 0)
+tab2.Position = UDim2.new(0.25, 0, 0, 0)
 tab2.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
 tab2.Text = "🔼 Платформа"
 tab2.TextColor3 = Color3.fromRGB(200, 200, 220)
-tab2.TextSize = 12
+tab2.TextSize = 11
 tab2.Font = Enum.Font.GothamBold
 tab2.BorderSizePixel = 0
 tab2.Parent = tabBar
 
 local tab3 = Instance.new("TextButton")
-tab3.Size = UDim2.new(0.34, 0, 1, 0)
-tab3.Position = UDim2.new(0.66, 0, 0, 0)
+tab3.Size = UDim2.new(0.25, 0, 1, 0)
+tab3.Position = UDim2.new(0.5, 0, 0, 0)
 tab3.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
 tab3.Text = "🎯 Аимбот"
 tab3.TextColor3 = Color3.fromRGB(200, 200, 220)
-tab3.TextSize = 12
+tab3.TextSize = 11
 tab3.Font = Enum.Font.GothamBold
 tab3.BorderSizePixel = 0
 tab3.Parent = tabBar
+
+local tab4 = Instance.new("TextButton")
+tab4.Size = UDim2.new(0.25, 0, 1, 0)
+tab4.Position = UDim2.new(0.75, 0, 0, 0)
+tab4.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
+tab4.Text = "⌨️ Кейбинды"
+tab4.TextColor3 = Color3.fromRGB(200, 200, 220)
+tab4.TextSize = 11
+tab4.Font = Enum.Font.GothamBold
+tab4.BorderSizePixel = 0
+tab4.Parent = tabBar
 
 -- Панели
 local velocityPanel = Instance.new("Frame")
@@ -505,6 +470,13 @@ aimbotPanel.Position = UDim2.new(0, 0, 0, 35)
 aimbotPanel.BackgroundTransparency = 1
 aimbotPanel.Visible = false
 aimbotPanel.Parent = contentFrame
+
+local keybindPanel = Instance.new("Frame")
+keybindPanel.Size = UDim2.new(1, 0, 1, -35)
+keybindPanel.Position = UDim2.new(0, 0, 0, 35)
+keybindPanel.BackgroundTransparency = 1
+keybindPanel.Visible = false
+keybindPanel.Parent = contentFrame
 
 -- ===== ПАНЕЛЬ VELOCITY =====
 local velocityLabel = Instance.new("TextLabel")
@@ -949,17 +921,127 @@ sprayToggleButton.Font = Enum.Font.GothamBold
 sprayToggleButton.BorderSizePixel = 0
 sprayToggleButton.Parent = aimbotPanel
 
-local keyInfoLabel = Instance.new("TextLabel")
-keyInfoLabel.Size = UDim2.new(1, -40, 0, 50)
-keyInfoLabel.Position = UDim2.new(0, 20, 0, 345)
-keyInfoLabel.BackgroundTransparency = 1
-keyInfoLabel.Text = "⌨️ Горячие клавиши:\n• T - активация метода\n• H - скрыть/показать меню\n• C - переключение аимбота"
-keyInfoLabel.TextColor3 = Color3.fromRGB(150, 150, 180)
-keyInfoLabel.TextSize = 11
-keyInfoLabel.Font = Enum.Font.Gotham
-keyInfoLabel.TextXAlignment = Enum.TextXAlignment.Left
-keyInfoLabel.TextYAlignment = Enum.TextYAlignment.Top
-keyInfoLabel.Parent = aimbotPanel
+-- ===== ПАНЕЛЬ КЕЙБИНДОВ =====
+local keybindMainLabel = Instance.new("TextLabel")
+keybindMainLabel.Size = UDim2.new(1, -40, 0, 40)
+keybindMainLabel.Position = UDim2.new(0, 20, 0, 15)
+keybindMainLabel.BackgroundTransparency = 1
+keybindMainLabel.Text = "⌨️ Настройка горячих клавиш"
+keybindMainLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
+keybindMainLabel.TextSize = 16
+keybindMainLabel.Font = Enum.Font.GothamBold
+keybindMainLabel.TextXAlignment = Enum.TextXAlignment.Center
+keybindMainLabel.Parent = keybindPanel
+
+local actionKeyFrame = Instance.new("Frame")
+actionKeyFrame.Size = UDim2.new(0, 350, 0, 50)
+actionKeyFrame.Position = UDim2.new(0.5, -175, 0, 70)
+actionKeyFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+actionKeyFrame.BackgroundTransparency = 0.5
+actionKeyFrame.BorderSizePixel = 0
+actionKeyFrame.Parent = keybindPanel
+
+local actionKeyLabel = Instance.new("TextLabel")
+actionKeyLabel.Size = UDim2.new(0.6, 0, 1, 0)
+actionKeyLabel.Position = UDim2.new(0, 15, 0, 0)
+actionKeyLabel.BackgroundTransparency = 1
+actionKeyLabel.Text = "🚀 Активация метода:"
+actionKeyLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
+actionKeyLabel.TextSize = 14
+actionKeyLabel.Font = Enum.Font.Gotham
+actionKeyLabel.TextXAlignment = Enum.TextXAlignment.Left
+actionKeyLabel.Parent = actionKeyFrame
+
+local actionKeyButton = Instance.new("TextButton")
+actionKeyButton.Size = UDim2.new(0, 80, 0, 35)
+actionKeyButton.Position = UDim2.new(0.75, 0, 0.5, -17.5)
+actionKeyButton.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+actionKeyButton.Text = actionKeybind
+actionKeyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+actionKeyButton.TextSize = 18
+actionKeyButton.Font = Enum.Font.GothamBold
+actionKeyButton.BorderSizePixel = 0
+actionKeyButton.Parent = actionKeyFrame
+
+local hideKeyFrame = Instance.new("Frame")
+hideKeyFrame.Size = UDim2.new(0, 350, 0, 50)
+hideKeyFrame.Position = UDim2.new(0.5, -175, 0, 135)
+hideKeyFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+hideKeyFrame.BackgroundTransparency = 0.5
+hideKeyFrame.BorderSizePixel = 0
+hideKeyFrame.Parent = keybindPanel
+
+local hideKeyLabel = Instance.new("TextLabel")
+hideKeyLabel.Size = UDim2.new(0.6, 0, 1, 0)
+hideKeyLabel.Position = UDim2.new(0, 15, 0, 0)
+hideKeyLabel.BackgroundTransparency = 1
+hideKeyLabel.Text = "👁️ Скрыть/показать меню:"
+hideKeyLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
+hideKeyLabel.TextSize = 14
+hideKeyLabel.Font = Enum.Font.Gotham
+hideKeyLabel.TextXAlignment = Enum.TextXAlignment.Left
+hideKeyLabel.Parent = hideKeyFrame
+
+local hideKeyButton = Instance.new("TextButton")
+hideKeyButton.Size = UDim2.new(0, 80, 0, 35)
+hideKeyButton.Position = UDim2.new(0.75, 0, 0.5, -17.5)
+hideKeyButton.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+hideKeyButton.Text = hideKeybind
+hideKeyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+hideKeyButton.TextSize = 18
+hideKeyButton.Font = Enum.Font.GothamBold
+hideKeyButton.BorderSizePixel = 0
+hideKeyButton.Parent = hideKeyFrame
+
+local aimbotKeyFrame = Instance.new("Frame")
+aimbotKeyFrame.Size = UDim2.new(0, 350, 0, 50)
+aimbotKeyFrame.Position = UDim2.new(0.5, -175, 0, 200)
+aimbotKeyFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+aimbotKeyFrame.BackgroundTransparency = 0.5
+aimbotKeyFrame.BorderSizePixel = 0
+aimbotKeyFrame.Parent = keybindPanel
+
+local aimbotKeyLabel = Instance.new("TextLabel")
+aimbotKeyLabel.Size = UDim2.new(0.6, 0, 1, 0)
+aimbotKeyLabel.Position = UDim2.new(0, 15, 0, 0)
+aimbotKeyLabel.BackgroundTransparency = 1
+aimbotKeyLabel.Text = "🎯 Переключить аимбот:"
+aimbotKeyLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
+aimbotKeyLabel.TextSize = 14
+aimbotKeyLabel.Font = Enum.Font.Gotham
+aimbotKeyLabel.TextXAlignment = Enum.TextXAlignment.Left
+aimbotKeyLabel.Parent = aimbotKeyFrame
+
+local aimbotKeyButton = Instance.new("TextButton")
+aimbotKeyButton.Size = UDim2.new(0, 80, 0, 35)
+aimbotKeyButton.Position = UDim2.new(0.75, 0, 0.5, -17.5)
+aimbotKeyButton.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+aimbotKeyButton.Text = aimbotKeybind
+aimbotKeyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+aimbotKeyButton.TextSize = 18
+aimbotKeyButton.Font = Enum.Font.GothamBold
+aimbotKeyButton.BorderSizePixel = 0
+aimbotKeyButton.Parent = aimbotKeyFrame
+
+local keybindInfoFrame = Instance.new("Frame")
+keybindInfoFrame.Size = UDim2.new(0, 350, 0, 80)
+keybindInfoFrame.Position = UDim2.new(0.5, -175, 0, 270)
+keybindInfoFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+keybindInfoFrame.BackgroundTransparency = 0.5
+keybindInfoFrame.BorderSizePixel = 0
+keybindInfoFrame.Parent = keybindPanel
+
+local keybindInfoText = Instance.new("TextLabel")
+keybindInfoText.Size = UDim2.new(1, -20, 1, 0)
+keybindInfoText.Position = UDim2.new(0, 10, 0, 0)
+keybindInfoText.BackgroundTransparency = 1
+keybindInfoText.Text = "💡 Информация:\n• Нажмите на кнопку с клавишей, чтобы изменить её\n• Затем нажмите любую клавишу на клавиатуре\n• Кейбинды работают даже когда меню скрыто"
+keybindInfoText.TextColor3 = Color3.fromRGB(150, 150, 180)
+keybindInfoText.TextSize = 11
+keybindInfoText.Font = Enum.Font.Gotham
+keybindInfoText.TextXAlignment = Enum.TextXAlignment.Left
+keybindInfoText.TextYAlignment = Enum.TextYAlignment.Top
+keybindInfoText.Parent = keybindInfoFrame
 
 -- Цвета для платформы
 local platformColors = {
@@ -996,9 +1078,11 @@ tab1.MouseButton1Click:Connect(function()
     velocityPanel.Visible = true
     platformPanel.Visible = false
     aimbotPanel.Visible = false
+    keybindPanel.Visible = false
     tab1.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
     tab2.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
     tab3.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
+    tab4.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
     selectedMethod = "Velocity"
 end)
 
@@ -1006,9 +1090,11 @@ tab2.MouseButton1Click:Connect(function()
     velocityPanel.Visible = false
     platformPanel.Visible = true
     aimbotPanel.Visible = false
+    keybindPanel.Visible = false
     tab1.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
     tab2.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
     tab3.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
+    tab4.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
     selectedMethod = "Platform"
 end)
 
@@ -1016,9 +1102,22 @@ tab3.MouseButton1Click:Connect(function()
     velocityPanel.Visible = false
     platformPanel.Visible = false
     aimbotPanel.Visible = true
+    keybindPanel.Visible = false
     tab1.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
     tab2.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
     tab3.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+    tab4.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
+end)
+
+tab4.MouseButton1Click:Connect(function()
+    velocityPanel.Visible = false
+    platformPanel.Visible = false
+    aimbotPanel.Visible = false
+    keybindPanel.Visible = true
+    tab1.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
+    tab2.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
+    tab3.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
+    tab4.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
 end)
 
 -- Кнопки действий
@@ -1148,6 +1247,67 @@ UserInputService.InputEnded:Connect(function(input)
     end
 end)
 
+-- Функции обновления слайдеров
+local function updateHeightSlider(value)
+    local minVal = 1
+    local maxVal = 1000000
+    local percent = (value - minVal) / (maxVal - minVal)
+    percent = math.clamp(percent, 0, 1)
+    heightSliderFill.Size = UDim2.new(percent, 0, 1, 0)
+    heightSliderButton.Position = UDim2.new(percent, -10, 0.5, -10)
+    heightValueLabel.Text = formatNumber(value) .. " студней"
+end
+
+local function updateVelocitySlider(value)
+    local minVal = 0.1
+    local maxVal = 5.0
+    local percent = (value - minVal) / (maxVal - minVal)
+    percent = math.clamp(percent, 0, 1)
+    velocitySliderFill.Size = UDim2.new(percent, 0, 1, 0)
+    velocitySliderButton.Position = UDim2.new(percent, -10, 0.5, -10)
+    velocityValueLabel.Text = "Множитель: x" .. string.format("%.1f", value)
+end
+
+local function updatePlatformSpeedSlider(value)
+    local minVal = 30
+    local maxVal = 300
+    local percent = (value - minVal) / (maxVal - minVal)
+    percent = math.clamp(percent, 0, 1)
+    platformSpeedSliderFill.Size = UDim2.new(percent, 0, 1, 0)
+    platformSpeedSliderButton.Position = UDim2.new(percent, -10, 0.5, -10)
+    platformSpeedValueLabel.Text = math.floor(value) .. " ст/с"
+end
+
+local function updatePlatformHeightSlider(value)
+    local minVal = 10
+    local maxVal = 1000
+    local percent = (value - minVal) / (maxVal - minVal)
+    percent = math.clamp(percent, 0, 1)
+    platformHeightSliderFill.Size = UDim2.new(percent, 0, 1, 0)
+    platformHeightSliderButton.Position = UDim2.new(percent, -10, 0.5, -10)
+    platformHeightValueLabel.Text = math.floor(value) .. " ст"
+end
+
+local function updateSmoothnessSlider(value)
+    local minVal = 0.05
+    local maxVal = 0.5
+    local percent = (value - minVal) / (maxVal - minVal)
+    percent = math.clamp(percent, 0, 1)
+    smoothnessSliderFill.Size = UDim2.new(percent, 0, 1, 0)
+    smoothnessSliderButton.Position = UDim2.new(percent, -10, 0.5, -10)
+    smoothnessValueLabel.Text = string.format("%.2f", value)
+end
+
+local function updateSpraySlider(value)
+    local minVal = 0
+    local maxVal = 0.3
+    local percent = (value - minVal) / (maxVal - minVal)
+    percent = math.clamp(percent, 0, 1)
+    spraySliderFill.Size = UDim2.new(percent, 0, 1, 0)
+    spraySliderButton.Position = UDim2.new(percent, -10, 0.5, -10)
+    sprayValueLabel.Text = string.format("%.2f", value)
+end
+
 -- Применение значений
 local function applyHeight()
     local num = tonumber(heightInputBox.Text)
@@ -1187,6 +1347,71 @@ heightInputBox.FocusLost:Connect(function(enter) if enter then applyHeight() end
 velocityApplyButton.MouseButton1Click:Connect(applyVelocity)
 velocityInputBox.FocusLost:Connect(function(enter) if enter then applyVelocity() end end)
 sprayToggleButton.MouseButton1Click:Connect(toggleSpray)
+
+-- Функции для изменения кейбиндов
+local waitingForActionKey = false
+local waitingForHideKey = false
+local waitingForAimbotKey = false
+
+actionKeyButton.MouseButton1Click:Connect(function()
+    waitingForActionKey = true
+    actionKeyButton.Text = "..."
+    actionKeyButton.BackgroundColor3 = Color3.fromRGB(200, 100, 0)
+    
+    local connection
+    connection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if waitingForActionKey and not gameProcessed then
+            local key = input.KeyCode.Name
+            if key ~= "Unknown" then
+                actionKeybind = key
+                actionKeyButton.Text = key
+                actionKeyButton.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+                waitingForActionKey = false
+                connection:Disconnect()
+            end
+        end
+    end)
+end)
+
+hideKeyButton.MouseButton1Click:Connect(function()
+    waitingForHideKey = true
+    hideKeyButton.Text = "..."
+    hideKeyButton.BackgroundColor3 = Color3.fromRGB(200, 100, 0)
+    
+    local connection
+    connection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if waitingForHideKey and not gameProcessed then
+            local key = input.KeyCode.Name
+            if key ~= "Unknown" then
+                hideKeybind = key
+                hideKeyButton.Text = key
+                hideKeyButton.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+                waitingForHideKey = false
+                connection:Disconnect()
+            end
+        end
+    end)
+end)
+
+aimbotKeyButton.MouseButton1Click:Connect(function()
+    waitingForAimbotKey = true
+    aimbotKeyButton.Text = "..."
+    aimbotKeyButton.BackgroundColor3 = Color3.fromRGB(200, 100, 0)
+    
+    local connection
+    connection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if waitingForAimbotKey and not gameProcessed then
+            local key = input.KeyCode.Name
+            if key ~= "Unknown" then
+                aimbotKeybind = key
+                aimbotKeyButton.Text = key
+                aimbotKeyButton.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+                waitingForAimbotKey = false
+                connection:Disconnect()
+            end
+        end
+    end)
+end)
 
 -- Горячие клавиши
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
@@ -1229,6 +1454,10 @@ local function onCharacterAdded(newChar)
     if platformRenderConnection then
         platformRenderConnection:Disconnect()
         platformRenderConnection = nil
+    end
+    if originalGravity then
+        workspace.Gravity = originalGravity
+        originalGravity = nil
     end
     
     local humanoid = newChar:WaitForChild("Humanoid")
@@ -1302,6 +1531,9 @@ closeButton.MouseButton1Click:Connect(function()
     end
     if platform then
         platform:Destroy()
+    end
+    if originalGravity then
+        workspace.Gravity = originalGravity
     end
     screenGui:Destroy()
 end)
