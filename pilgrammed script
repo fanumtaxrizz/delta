@@ -1,0 +1,74 @@
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local character = player.Character or player.CharacterAdded:Wait()
+local camera = workspace.CurrentCamera
+
+-- НАСТРОЙКИ
+local distance = 100
+local isShooting = false
+local toggleKey = Enum.KeyCode.R -- нажми R для включения/выключения
+
+-- Лук
+local bow = character:WaitForChild("Prism Bow")
+local shoot = bow:WaitForChild("Shoot")
+
+-- Функция выстрела
+local function shootArrow()
+    if not player.Character or not player.Character:FindFirstChild("Prism Bow") then 
+        isShooting = false
+        return 
+    end
+    
+    local targetPosition = camera.CFrame.Position + camera.CFrame.LookVector * distance
+    
+    local args = {
+        targetPosition,
+        "Ice Arrow",
+        true,
+        1
+    }
+    
+    shoot:InvokeServer(unpack(args))
+end
+
+-- Переменная для подключения
+local renderConnection = nil
+
+-- Функция начала стрельбы
+local function startShooting()
+    if renderConnection then return end
+    renderConnection = RunService.RenderStepped:Connect(function()
+        if isShooting then
+            shootArrow()
+        end
+    end)
+end
+
+-- Функция остановки стрельбы
+local function stopShooting()
+    if renderConnection then
+        renderConnection:Disconnect()
+        renderConnection = nil
+    end
+end
+
+-- Обработка нажатий клавиш
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == toggleKey then
+        if isShooting then
+            isShooting = false
+            stopShooting()
+            print("Стрельба остановлена")
+        else
+            isShooting = true
+            startShooting()
+            print("Стрельба начата")
+        end
+    end
+end)
+
+print("Нажми R чтобы начать/остановить стрельбу (без задержки)")
